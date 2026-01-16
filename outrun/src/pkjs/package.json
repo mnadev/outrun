@@ -1,0 +1,11 @@
+{
+  "name": "outrun-pkjs-tests",
+  "version": "1.0.0",
+  "description": "Tests for Outrun PebbleKit JS",
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  }
+}

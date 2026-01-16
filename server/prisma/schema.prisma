@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  
+  // Strava integration
+  stravaId      String?   @unique
+  stravaToken   String?
+  stravaRefresh String?
+  stravaExpires DateTime?
+  
+  // Premium status
+  premium         Boolean   @default(false)
+  stripeCustomerId String?  @unique
+  
+  // Preferences
+  theme         String    @default("classic")
+  targetPace    Int       @default(300) // seconds per km
+  
+  accounts      Account[]
+  sessions      Session[]
+  devices       Device[]
+  runs          Run[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Device {
+  id          String   @id @default(cuid())
+  pairingCode String   @unique
+  name        String   @default("Pebble")
+  
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  lastSeen    DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model Run {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Run metrics
+  distance     Int      // meters
+  duration     Int      // seconds
+  avgPace      Int      // seconds per km
+  
+  // Horror game metrics
+  composure    Float    // 0-100 (how steady was pace)
+  escaped      Boolean  // did they "survive"?
+  closeCalls   Int      @default(0) // times in DANGER zone
+  dangerTime   Int      @default(0) // seconds in DANGER
+  
+  // GPS data
+  gpxData      Json?    // Array of {lat, lng, timestamp}
+  
+  // Strava sync
+  stravaId     String?  // Strava activity ID if synced
+  
+  theme        String   @default("classic") // which stalker theme was used
+  
+  createdAt    DateTime @default(now())
+}

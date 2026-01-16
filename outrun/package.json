@@ -1,0 +1,39 @@
+{
+  "name": "outrun",
+  "author": "MakeAwesomeHappen",
+  "version": "1.0.0",
+  "keywords": ["pebble-app"],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "outrun",
+    "uuid": "db871386-cf15-4640-91c8-a7abe2aa56d6",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "aplite",
+      "basalt",
+      "chalk",
+      "diorite",
+      "emery",
+      "flint"
+    ],
+    "watchapp": {
+      "watchface": false
+    },
+    "messageKeys": [
+      "CURRENT_PACE",
+      "TARGET_PACE",
+      "IS_RUNNING",
+      "COMMAND",
+      "SEGMENT_ACTIVE",
+      "SEGMENT_NAME",
+      "RIVAL_NAME",
+      "RIVAL_TIME",
+      "CONNECTED"
+    ],
+    "resources": {
+      "media": []
+    }
+  }
+}

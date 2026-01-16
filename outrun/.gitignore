@@ -1,0 +1,24 @@
+# Build artifacts
+build/
+*.pbw
+
+# Node.js
+node_modules/
+npm-debug.log*
+
+# Test output
+test/*_runner
+test/*.dSYM
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Pebble SDK cache
+.pebble-builds/
