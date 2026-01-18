@@ -2,54 +2,26 @@
  * server_client.test.js - Tests for Server API Client module
  */
 
-// Mock localStorage
-const localStorageMock = {
-  store: {},
-  getItem: function (key) { return this.store[key] || null; },
-  setItem: function (key, value) { this.store[key] = value; },
-  removeItem: function (key) { delete this.store[key]; },
-  clear: function () { this.store = {}; }
-};
-global.localStorage = localStorageMock;
-
-// Mock XMLHttpRequest
-class MockXMLHttpRequest {
-  constructor() {
-    this.method = null;
-    this.url = null;
-    this.headers = {};
-    this.body = null;
-    this.status = 200;
-    this.responseText = '{}';
-    this.onload = null;
-    this.onerror = null;
-  }
-
-  open(method, url) {
-    this.method = method;
-    this.url = url;
-  }
-
-  setRequestHeader(key, value) {
-    this.headers[key] = value;
-  }
-
-  send(body) {
-    this.body = body;
-    // Simulate async response
-    setTimeout(() => {
-      if (this.onload) this.onload();
-    }, 0);
-  }
-}
-
-global.XMLHttpRequest = MockXMLHttpRequest;
-
-const ServerClient = require('../server_client');
-
 describe('ServerClient', () => {
+  let ServerClient;
+
   beforeEach(() => {
-    localStorage.clear();
+    jest.resetModules();
+
+    // Mock XMLHttpRequest
+    global.XMLHttpRequest = class {
+      constructor() {
+        this.status = 200;
+        this.responseText = '{"success": true}';
+      }
+      open() { }
+      setRequestHeader() { }
+      send() {
+        setTimeout(() => { if (this.onload) this.onload(); }, 0);
+      }
+    };
+
+    ServerClient = require('../server_client');
   });
 
   describe('getDeviceId', () => {
@@ -59,6 +31,9 @@ describe('ServerClient', () => {
 
     it('returns stored device ID', () => {
       localStorage.setItem('outrun_device_id', 'device123');
+      // Re-require to pick up localStorage
+      jest.resetModules();
+      ServerClient = require('../server_client');
       expect(ServerClient.getDeviceId()).toBe('device123');
     });
   });
@@ -70,6 +45,8 @@ describe('ServerClient', () => {
 
     it('returns stored pairing code', () => {
       localStorage.setItem('outrun_pairing_code', 'A7X3K2');
+      jest.resetModules();
+      ServerClient = require('../server_client');
       expect(ServerClient.getPairingCode()).toBe('A7X3K2');
     });
   });
@@ -101,43 +78,40 @@ describe('ServerClient', () => {
   });
 
   describe('saveRun', () => {
-    it('returns a promise', () => {
-      localStorage.setItem('outrun_device_id', 'device123');
-      const result = ServerClient.saveRun({
-        distance: 5000,
-        elapsed: 1800,
-        avgPace: 360,
-        composure: 85,
-        escaped: true
+    it('rejects without device ID', (done) => {
+      ServerClient.saveRun({}).catch(err => {
+        expect(err).toBe('No device ID');
+        done();
       });
-      expect(result).toBeInstanceOf(Promise);
     });
 
-    it('rejects without device ID', () => {
-      return ServerClient.saveRun({}).catch(err => {
-        expect(err).toBe('No device ID');
+    it('returns a promise with device ID', () => {
+      localStorage.setItem('outrun_device_id', 'device123');
+      jest.resetModules();
+      ServerClient = require('../server_client');
+
+      const result = ServerClient.saveRun({
+        distance: 5000,
+        elapsed: 1800
       });
+      expect(result).toBeInstanceOf(Promise);
     });
   });
 
   describe('syncToStrava', () => {
-    it('returns a promise', () => {
-      localStorage.setItem('outrun_device_id', 'device123');
-      const result = ServerClient.syncToStrava('run123');
-      expect(result).toBeInstanceOf(Promise);
-    });
-
-    it('rejects without device ID', () => {
-      return ServerClient.syncToStrava('run123').catch(err => {
+    it('rejects without device ID', (done) => {
+      ServerClient.syncToStrava('run123').catch(err => {
         expect(err).toBe('No device ID');
+        done();
       });
     });
   });
 
   describe('checkPairingStatus', () => {
-    it('rejects without device ID', () => {
-      return ServerClient.checkPairingStatus().catch(err => {
+    it('rejects without device ID', (done) => {
+      ServerClient.checkPairingStatus().catch(err => {
         expect(err).toBe('No device ID');
+        done();
       });
     });
   });

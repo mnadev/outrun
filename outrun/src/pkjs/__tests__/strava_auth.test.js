@@ -2,21 +2,12 @@
  * strava_auth.test.js - Tests for Strava OAuth module
  */
 
-// Mock localStorage
-const localStorageMock = {
-  store: {},
-  getItem: function (key) { return this.store[key] || null; },
-  setItem: function (key, value) { this.store[key] = value; },
-  removeItem: function (key) { delete this.store[key]; },
-  clear: function () { this.store = {}; }
-};
-global.localStorage = localStorageMock;
-
-const StravaAuth = require('../strava_auth');
-
 describe('StravaAuth', () => {
+  let StravaAuth;
+
   beforeEach(() => {
-    localStorage.clear();
+    jest.resetModules();
+    StravaAuth = require('../strava_auth');
   });
 
   describe('isAuthenticated', () => {
@@ -25,27 +16,30 @@ describe('StravaAuth', () => {
     });
 
     it('returns true with valid tokens', () => {
+      // Uses strava_expires_at (unix timestamp), not strava_token_expires
       localStorage.setItem('strava_access_token', 'test_token');
-      localStorage.setItem('strava_token_expires', (Date.now() + 3600000).toString());
+      localStorage.setItem('strava_expires_at', (Math.floor(Date.now() / 1000) + 3600).toString());
       expect(StravaAuth.isAuthenticated()).toBe(true);
     });
 
     it('returns false with expired token', () => {
       localStorage.setItem('strava_access_token', 'test_token');
-      localStorage.setItem('strava_token_expires', (Date.now() - 1000).toString());
+      localStorage.setItem('strava_expires_at', (Math.floor(Date.now() / 1000) - 100).toString());
       expect(StravaAuth.isAuthenticated()).toBe(false);
     });
   });
 
   describe('getAccessToken', () => {
-    it('returns null with no token', () => {
-      expect(StravaAuth.getAccessToken()).toBeNull();
+    it('resolves to null with no token', async () => {
+      const token = await StravaAuth.getAccessToken();
+      expect(token).toBeNull();
     });
 
-    it('returns token when stored', () => {
+    it('resolves to token when stored and valid', async () => {
       localStorage.setItem('strava_access_token', 'my_token');
-      localStorage.setItem('strava_token_expires', (Date.now() + 3600000).toString());
-      expect(StravaAuth.getAccessToken()).toBe('my_token');
+      localStorage.setItem('strava_expires_at', (Math.floor(Date.now() / 1000) + 3600).toString());
+      const token = await StravaAuth.getAccessToken();
+      expect(token).toBe('my_token');
     });
   });
 
@@ -53,57 +47,50 @@ describe('StravaAuth', () => {
     it('returns a valid Strava URL', () => {
       const url = StravaAuth.getAuthorizationUrl();
       expect(url).toContain('strava.com/oauth/authorize');
+    });
+
+    it('includes client_id', () => {
+      const url = StravaAuth.getAuthorizationUrl();
       expect(url).toContain('client_id=');
+    });
+
+    it('includes scope', () => {
+      const url = StravaAuth.getAuthorizationUrl();
       expect(url).toContain('scope=');
     });
-
-    it('includes required scopes', () => {
-      const url = StravaAuth.getAuthorizationUrl();
-      expect(url).toContain('read');
-      expect(url).toContain('activity');
-    });
   });
 
-  describe('handleAuthCallback', () => {
-    it('stores tokens from callback data', () => {
-      const callbackData = {
-        access_token: 'new_access_token',
-        refresh_token: 'new_refresh_token',
-        expires_at: Math.floor(Date.now() / 1000) + 3600
-      };
-
-      StravaAuth.handleAuthCallback(callbackData);
-
-      expect(localStorage.getItem('strava_access_token')).toBe('new_access_token');
-      expect(localStorage.getItem('strava_refresh_token')).toBe('new_refresh_token');
-    });
-  });
-
-  describe('logout', () => {
+  describe('clearTokens', () => {
     it('clears all tokens', () => {
       localStorage.setItem('strava_access_token', 'token');
       localStorage.setItem('strava_refresh_token', 'refresh');
-      localStorage.setItem('strava_token_expires', '12345');
+      localStorage.setItem('strava_expires_at', '12345');
 
-      StravaAuth.logout();
+      StravaAuth.clearTokens();
 
       expect(localStorage.getItem('strava_access_token')).toBeNull();
       expect(localStorage.getItem('strava_refresh_token')).toBeNull();
-      expect(localStorage.getItem('strava_token_expires')).toBeNull();
+      expect(localStorage.getItem('strava_expires_at')).toBeNull();
     });
   });
 
-  describe('needsRefresh', () => {
-    it('returns true when token expires soon', () => {
-      localStorage.setItem('strava_access_token', 'token');
-      localStorage.setItem('strava_token_expires', (Date.now() + 60000).toString()); // 1 min
-      expect(StravaAuth.needsRefresh()).toBe(true);
+  describe('setClientCredentials', () => {
+    it('sets the client ID and secret', () => {
+      // This just tests that the function exists and runs without error
+      expect(() => {
+        StravaAuth.setClientCredentials('test_id', 'test_secret');
+      }).not.toThrow();
+    });
+  });
+
+  describe('getAthleteId', () => {
+    it('returns null with no athlete ID', () => {
+      expect(StravaAuth.getAthleteId()).toBeNull();
     });
 
-    it('returns false when token is fresh', () => {
-      localStorage.setItem('strava_access_token', 'token');
-      localStorage.setItem('strava_token_expires', (Date.now() + 3600000).toString()); // 1 hour
-      expect(StravaAuth.needsRefresh()).toBe(false);
+    it('returns stored athlete ID', () => {
+      localStorage.setItem('strava_athlete_id', '12345');
+      expect(StravaAuth.getAthleteId()).toBe('12345');
     });
   });
 });

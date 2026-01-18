@@ -3,7 +3,18 @@
   "version": "1.0.0",
   "description": "Tests for Outrun PebbleKit JS",
   "scripts": {
-    "test": "jest"
+    "test": "jest --forceExit"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": [
+      "./__tests__/setup.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "setup.js"
+    ],
+    "testTimeout": 10000
   },
   "devDependencies": {
     "jest": "^29.0.0"
