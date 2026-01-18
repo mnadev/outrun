@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Tests for Outrun PebbleKit JS",
   "scripts": {
-    "test": "jest --forceExit"
+    "test": "jest --forceExit --maxWorkers=1"
   },
   "jest": {
     "testEnvironment": "node",
