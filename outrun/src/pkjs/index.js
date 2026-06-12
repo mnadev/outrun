@@ -10,12 +10,14 @@
 
 var PaceCalculator = require('./pace_calculator');
 var PlanPresets = require('./plan_presets');
+var WatchCommands = require('./watch_commands');
 var StravaAuth = require('./strava_auth');
 var StravaSegments = require('./strava_segments');
 var ServerClient = require('./server_client');
 
 // State
 var isTracking = false;
+var isPaused = false;
 var watchId = null;
 var paceCalculator = new PaceCalculator();
 var activeSegment = null;
@@ -42,12 +44,7 @@ var Keys = {
 };
 
 // Commands from watch
-var Commands = {
-    START: 1,
-    STOP: 2,
-    PAUSE: 3,
-    RESUME: 4
-};
+var Commands = WatchCommands.Commands;
 
 /**
  * Send pace data to the watch
@@ -278,7 +275,7 @@ function startDebugSimulator() {
 
         debugLat += deltaLat;
         debugLng += deltaLat * 0.2;
-        debugPaceOffset = (debugPaceOffset + 1) % 40 - 20;
+        debugPaceOffset = ((debugPaceOffset + 1) % 40) - 20;
         debugHr = 125 + (debugPaceOffset * 2);
 
         var location = {
@@ -309,6 +306,7 @@ function startTracking() {
 
     console.log('Starting GPS tracking...');
     isTracking = true;
+    isPaused = false;
     paceCalculator.reset();
     activeSegment = null;
     segmentStartTime = null;
@@ -338,10 +336,11 @@ function startTracking() {
  * Stop GPS tracking
  */
 function stopTracking() {
-    if (!isTracking) return;
+    if (!isTracking && !isPaused) return;
 
     console.log('Stopping GPS tracking...');
     isTracking = false;
+    isPaused = false;
 
     stopDebugSimulator();
 
@@ -402,28 +401,21 @@ function handleAppMessage(e) {
     var payload = e.payload;
     console.log('Received message from watch: ' + JSON.stringify(payload));
 
-    // Handle commands
-    if (payload[Keys.COMMAND] !== undefined) {
-        switch (payload[Keys.COMMAND]) {
-            case Commands.START:
-                startTracking();
-                break;
-            case Commands.STOP:
-                stopTracking();
-                break;
-            case Commands.PAUSE:
-                isTracking = false;
-                break;
-            case Commands.RESUME:
-                isTracking = true;
-                break;
+    WatchCommands.applyWatchPayload(payload, {
+        startTracking: startTracking,
+        stopTracking: stopTracking,
+        pauseTracking: function () {
+            isPaused = true;
+            isTracking = false;
+        },
+        resumeTracking: function () {
+            isPaused = false;
+            isTracking = true;
+        },
+        setTargetPace: function (pace) {
+            paceCalculator.setTargetPace(pace);
         }
-    }
-
-    // Handle target pace update
-    if (payload[Keys.TARGET_PACE] !== undefined) {
-        paceCalculator.setTargetPace(payload[Keys.TARGET_PACE]);
-    }
+    });
 }
 
 // Register PebbleKit JS event handlers

@@ -19,8 +19,8 @@ static TextLayer *s_hr_layer;
 static TextLayer *s_stats_layer;
 static TextLayer *s_segment_layer;
 static TextLayer *s_status_layer;
-static AppTimer *s_update_timer;
 static bool s_show_summary;
+static bool s_tick_subscribed;
 
 static char s_pace_buffer[32];
 static char s_hr_buffer[24];
@@ -28,16 +28,33 @@ static char s_stats_buffer[40];
 static char s_segment_buffer[40];
 static char s_status_buffer[32];
 
-static void update_timer_callback(void *data);
+static void tick_handler(struct tm *tick_time, TimeUnits units_changed);
 static void select_click_handler(ClickRecognizerRef recognizer, void *context);
 static void up_click_handler(ClickRecognizerRef recognizer, void *context);
 static void down_click_handler(ClickRecognizerRef recognizer, void *context);
 static void select_long_click_handler(ClickRecognizerRef recognizer, void *context);
+static void back_click_handler(ClickRecognizerRef recognizer, void *context);
+static void stop_run_with_summary(void);
+
+static void subscribe_tick(void) {
+  if (!s_tick_subscribed) {
+    tick_timer_service_subscribe(SECOND_UNIT, tick_handler);
+    s_tick_subscribed = true;
+  }
+}
+
+static void unsubscribe_tick(void) {
+  if (s_tick_subscribed) {
+    tick_timer_service_unsubscribe();
+    s_tick_subscribed = false;
+  }
+}
 
 static void click_config_provider(void *context) {
   window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
   window_single_click_subscribe(BUTTON_ID_UP, up_click_handler);
   window_single_click_subscribe(BUTTON_ID_DOWN, down_click_handler);
+  window_single_click_subscribe(BUTTON_ID_BACK, back_click_handler);
   window_long_click_subscribe(BUTTON_ID_SELECT, 1000, select_long_click_handler, NULL);
 }
 
@@ -47,7 +64,17 @@ static void format_elapsed(char *buffer, size_t size, uint32_t seconds) {
   snprintf(buffer, size, "%lu:%02lu", (unsigned long)mins, (unsigned long)secs);
 }
 
+void run_window_show_summary(void) {
+  s_show_summary = true;
+  unsubscribe_tick();
+  run_window_update();
+}
+
 void run_window_update(void) {
+  if (!s_window || !s_pace_layer) {
+    return;
+  }
+
   const PaceData *pace = pace_engine_get_data();
   const RunStats *stats = run_state_get_stats();
   const AppSettings *settings = settings_get();
@@ -88,9 +115,25 @@ void run_window_update(void) {
 
   if (hr_monitor_is_available()) {
     uint8_t bpm = hr_monitor_get_bpm();
-    snprintf(s_hr_buffer, sizeof(s_hr_buffer), "HR %u (%u-%u)", bpm,
-             settings->hr_zone_lo, settings->hr_zone_hi);
-    layer_set_hidden(text_layer_get_layer(s_hr_layer), false);
+    uint8_t hr_lo = settings->hr_zone_lo;
+    uint8_t hr_hi = settings->hr_zone_hi;
+
+    if (run_session_is_planned()) {
+      const PlanProgress *progress = run_session_get_progress();
+      const PlanSegment *segment = plan_progress_current_segment(progress);
+      if (segment && segment->target_type == SEG_TARGET_HR) {
+        hr_lo = (uint8_t)segment->target_lo;
+        hr_hi = (uint8_t)segment->target_hi;
+      }
+    }
+
+    if (bpm > 0) {
+      snprintf(s_hr_buffer, sizeof(s_hr_buffer), "HR %u (%u-%u)", bpm, hr_lo, hr_hi);
+      layer_set_hidden(text_layer_get_layer(s_hr_layer), false);
+    } else {
+      snprintf(s_hr_buffer, sizeof(s_hr_buffer), " ");
+      layer_set_hidden(text_layer_get_layer(s_hr_layer), true);
+    }
   } else {
     snprintf(s_hr_buffer, sizeof(s_hr_buffer), " ");
     layer_set_hidden(text_layer_get_layer(s_hr_layer), true);
@@ -146,24 +189,28 @@ void run_window_show_segment_alert(const char *segment_name, const char *rival_n
 
 void run_window_hide_segment_alert(void) {}
 
-static void schedule_timer(void) {
-  if (s_update_timer) {
-    app_timer_cancel(s_update_timer);
+static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
+  if (!(units_changed & SECOND_UNIT)) {
+    return;
   }
-  RunState state = run_state_get();
-  if (state == RUN_ACTIVE || state == RUN_PAUSED) {
-    s_update_timer = app_timer_register(1000, update_timer_callback, NULL);
+
+  RunState before = run_state_get();
+  if (before == RUN_ACTIVE) {
+    run_state_tick();
+    run_session_tick();
+
+    if (run_state_get() == RUN_COMPLETE) {
+      run_window_show_summary();
+      return;
+    }
+    run_window_update();
   }
 }
 
-static void update_timer_callback(void *data) {
-  RunState state = run_state_get();
-  if (state == RUN_ACTIVE) {
-    run_state_tick();
-    run_session_tick();
-    run_window_update();
-  }
-  schedule_timer();
+static void stop_run_with_summary(void) {
+  run_state_stop();
+  run_session_stop();
+  run_window_show_summary();
 }
 
 static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
@@ -177,7 +224,7 @@ static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
       run_session_start_quick();
     }
     s_show_summary = false;
-    schedule_timer();
+    subscribe_tick();
     break;
   case RUN_ACTIVE:
     run_state_pause();
@@ -186,7 +233,6 @@ static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
   case RUN_PAUSED:
     run_state_resume();
     comm_send_command(CMD_RESUME);
-    schedule_timer();
     break;
   case RUN_COMPLETE:
     run_state_reset();
@@ -204,15 +250,25 @@ static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
 static void select_long_click_handler(ClickRecognizerRef recognizer, void *context) {
   RunState state = run_state_get();
   if (state == RUN_ACTIVE || state == RUN_PAUSED) {
-    run_state_stop();
-    run_session_stop();
-    s_show_summary = true;
-    if (s_update_timer) {
-      app_timer_cancel(s_update_timer);
-      s_update_timer = NULL;
-    }
-    run_window_update();
+    stop_run_with_summary();
   }
+}
+
+static void back_click_handler(ClickRecognizerRef recognizer, void *context) {
+  RunState state = run_state_get();
+
+  if (state == RUN_ACTIVE || state == RUN_PAUSED) {
+    stop_run_with_summary();
+    return;
+  }
+
+  if (state == RUN_COMPLETE) {
+    run_state_reset();
+    run_session_init();
+    s_show_summary = false;
+  }
+
+  window_stack_pop(true);
 }
 
 static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
@@ -293,13 +349,15 @@ static void window_load(Window *window) {
   layer_add_child(window_layer, text_layer_get_layer(s_status_layer));
 
   run_window_update();
+
+  RunState state = run_state_get();
+  if (state == RUN_ACTIVE || state == RUN_PAUSED) {
+    subscribe_tick();
+  }
 }
 
 static void window_unload(Window *window) {
-  if (s_update_timer) {
-    app_timer_cancel(s_update_timer);
-    s_update_timer = NULL;
-  }
+  unsubscribe_tick();
 
   text_layer_destroy(s_pace_label);
   text_layer_destroy(s_pace_layer);
@@ -307,13 +365,18 @@ static void window_unload(Window *window) {
   text_layer_destroy(s_stats_layer);
   text_layer_destroy(s_segment_layer);
   text_layer_destroy(s_status_layer);
+  s_pace_label = NULL;
+  s_pace_layer = NULL;
+  s_hr_layer = NULL;
+  s_stats_layer = NULL;
+  s_segment_layer = NULL;
+  s_status_layer = NULL;
   window_destroy(s_window);
   s_window = NULL;
 }
 
 static void push_window(void) {
   s_window = window_create();
-  s_show_summary = false;
   window_set_click_config_provider(s_window, click_config_provider);
   window_set_window_handlers(s_window,
                              (WindowHandlers){.load = window_load, .unload = window_unload});
@@ -321,17 +384,22 @@ static void push_window(void) {
 }
 
 void run_window_push_quick(void) {
-  run_session_init();
+  if (run_state_get() == RUN_IDLE && run_session_get_type() == SESSION_NONE) {
+    run_session_init();
+    s_show_summary = false;
+  }
   push_window();
 }
 
 void run_window_push_planned(uint8_t plan_index) {
-  run_session_init();
+  if (run_state_get() == RUN_IDLE && run_session_get_type() == SESSION_NONE) {
+    run_session_init();
+  }
   run_session_prepare_planned(plan_index);
   push_window();
   if (run_session_start_planned(plan_index)) {
     s_show_summary = false;
-    schedule_timer();
+    subscribe_tick();
     run_window_update();
   }
 }

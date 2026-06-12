@@ -40,6 +40,7 @@ AlertType alert_engine_tick(AlertState *state, const AlertInput *input) {
     state->pending_alert = ALERT_NONE;
     state->out_of_band_seconds = 0;
     state->seconds_since_last_alert = 0;
+    state->last_fired = ALERT_NONE;
     return ALERT_NONE;
   }
 

@@ -31,6 +31,16 @@ void pace_engine_init(int32_t target_pace_sec_per_km) {
   s_pace_data.state = PACE_ON_TARGET;
 }
 
+void pace_engine_set_target(int32_t target_pace_sec_per_km) {
+  if (target_pace_sec_per_km < 180) {
+    target_pace_sec_per_km = 180;
+  }
+  if (target_pace_sec_per_km > 900) {
+    target_pace_sec_per_km = 900;
+  }
+  s_pace_data.target_pace_sec_per_km = target_pace_sec_per_km;
+}
+
 PaceState pace_engine_update(int32_t current_pace_sec_per_km) {
   s_pace_data.current_pace_sec_per_km = current_pace_sec_per_km;
 

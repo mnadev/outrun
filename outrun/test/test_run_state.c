@@ -88,8 +88,11 @@ void test_stats_reset_on_start(void) {
 
 void test_tick_increments_elapsed_when_active(void) {
   run_state_start();
+  run_state_test_advance(1);
   run_state_tick();
+  run_state_test_advance(1);
   run_state_tick();
+  run_state_test_advance(1);
   run_state_tick();
 
   TEST_ASSERT_EQUAL(3, run_state_get_stats()->elapsed_seconds);
@@ -97,9 +100,12 @@ void test_tick_increments_elapsed_when_active(void) {
 
 void test_tick_does_not_increment_when_paused(void) {
   run_state_start();
+  run_state_test_advance(1);
   run_state_tick();
   run_state_pause();
+  run_state_test_advance(1);
   run_state_tick();
+  run_state_test_advance(1);
   run_state_tick();
 
   TEST_ASSERT_EQUAL(1, run_state_get_stats()->elapsed_seconds);
@@ -115,14 +121,13 @@ void test_add_distance_accumulates(void) {
 
 void test_avg_pace_calculated_correctly(void) {
   run_state_start();
-  run_state_add_distance(1000); // 1km
+  run_state_add_distance(1000);
 
-  // Simulate 5 minutes (300 seconds)
   for (int i = 0; i < 300; i++) {
+    run_state_test_advance(1);
     run_state_tick();
   }
 
-  // Pace should be 300 sec/km
   TEST_ASSERT_EQUAL(300, run_state_get_stats()->avg_pace_sec_per_km);
 }
 

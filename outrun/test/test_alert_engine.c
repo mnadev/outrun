@@ -65,6 +65,52 @@ void test_repeat_waits_twenty_seconds(void) {
   TEST_ASSERT_EQUAL(ALERT_PACE_TOO_SLOW, alert_engine_tick(&s_state, &input));
 }
 
+void test_re_excursion_fires_after_five_seconds(void) {
+  AlertInput slow = make_input(320, 130);
+  AlertInput in_band = make_input(300, 130);
+
+  for (int i = 0; i < 5; i++) {
+    alert_engine_tick(&s_state, &slow);
+  }
+  TEST_ASSERT_EQUAL(ALERT_PACE_TOO_SLOW, s_state.last_fired);
+
+  for (int i = 0; i < 3; i++) {
+    alert_engine_tick(&s_state, &in_band);
+  }
+
+  for (int i = 0; i < 4; i++) {
+    TEST_ASSERT_EQUAL(ALERT_NONE, alert_engine_tick(&s_state, &slow));
+  }
+  TEST_ASSERT_EQUAL(ALERT_PACE_TOO_SLOW, alert_engine_tick(&s_state, &slow));
+}
+
+void test_type_switch_restarts_debounce(void) {
+  AlertInput slow = make_input(320, 130);
+  AlertInput fast = make_input(280, 130);
+
+  for (int i = 0; i < 3; i++) {
+    TEST_ASSERT_EQUAL(ALERT_NONE, alert_engine_tick(&s_state, &slow));
+  }
+
+  for (int i = 0; i < 4; i++) {
+    TEST_ASSERT_EQUAL(ALERT_NONE, alert_engine_tick(&s_state, &fast));
+  }
+  TEST_ASSERT_EQUAL(ALERT_PACE_TOO_FAST, alert_engine_tick(&s_state, &fast));
+}
+
+void test_boundary_pace_is_in_band(void) {
+  AlertInput at_hi = make_input(310, 130);
+  AlertInput at_lo = make_input(290, 130);
+  TEST_ASSERT_EQUAL(ALERT_NONE, alert_engine_check(&at_hi));
+  TEST_ASSERT_EQUAL(ALERT_NONE, alert_engine_check(&at_lo));
+}
+
+void test_hr_unavailable_skips_hr_alerts(void) {
+  AlertInput input = make_input(320, 160);
+  input.hr_available = false;
+  TEST_ASSERT_EQUAL(ALERT_PACE_TOO_SLOW, alert_engine_check(&input));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_check_pace_too_slow);
@@ -72,5 +118,9 @@ int main(void) {
   RUN_TEST(test_check_hr_takes_priority);
   RUN_TEST(test_debounce_requires_five_seconds);
   RUN_TEST(test_repeat_waits_twenty_seconds);
+  RUN_TEST(test_re_excursion_fires_after_five_seconds);
+  RUN_TEST(test_type_switch_restarts_debounce);
+  RUN_TEST(test_boundary_pace_is_in_band);
+  RUN_TEST(test_hr_unavailable_skips_hr_alerts);
   return UNITY_END();
 }

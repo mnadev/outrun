@@ -21,7 +21,6 @@ static void menu_draw_row(GContext *ctx, const Layer *cell_layer, MenuIndex *cel
                           void *data) {
   const RunPlan *plan = plan_store_get(cell_index->row);
   const char *title = plan ? plan->name : "No plans yet";
-  graphics_context_set_text_color(ctx, GColorBlack);
   menu_cell_basic_draw(ctx, cell_layer, title, NULL, NULL);
 }
 
@@ -48,6 +47,7 @@ static void window_load(Window *window) {
 
 static void window_unload(Window *window) {
   menu_layer_destroy(s_menu);
+  s_menu = NULL;
   window_destroy(s_window);
   s_window = NULL;
 }

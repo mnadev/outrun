@@ -37,6 +37,11 @@ typedef struct {
 void pace_engine_init(int32_t target_pace_sec_per_km);
 
 /**
+ * Set target pace without resetting current pace.
+ */
+void pace_engine_set_target(int32_t target_pace_sec_per_km);
+
+/**
  * Update the pace engine with current pace data.
  * @param current_pace_sec_per_km Current pace from GPS
  * @return Updated PaceState

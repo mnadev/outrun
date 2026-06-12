@@ -101,10 +101,14 @@ void settings_format_pace(char *buffer, size_t size, int32_t pace_sec_per_km) {
 
 void settings_format_distance(char *buffer, size_t size, uint32_t meters) {
   if (s_settings.units == UNITS_MI) {
-    float miles = (float)meters / METERS_PER_MILE;
-    snprintf(buffer, size, "%.1f mi", miles);
+    uint32_t whole = meters / METERS_PER_MILE;
+    uint32_t tenths = ((meters % METERS_PER_MILE) * 10) / METERS_PER_MILE;
+    snprintf(buffer, size, "%lu.%lu mi", (unsigned long)whole,
+             (unsigned long)tenths);
   } else {
-    float km = (float)meters / 1000.0f;
-    snprintf(buffer, size, "%.1f km", km);
+    uint32_t whole = meters / 1000;
+    uint32_t tenths = (meters % 1000) / 100;
+    snprintf(buffer, size, "%lu.%lu km", (unsigned long)whole,
+             (unsigned long)tenths);
   }
 }

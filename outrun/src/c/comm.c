@@ -6,6 +6,7 @@
 #include "features.h"
 #include "hr_monitor.h"
 #include "plan.h"
+#include "run_session.h"
 #include "run_window.h"
 
 enum {
@@ -33,6 +34,10 @@ static CommPlanReceivedCallback s_plan_callback;
 static uint32_t s_last_distance;
 
 static void handle_plan_message(DictionaryIterator *iterator) {
+  if (run_session_is_active()) {
+    return;
+  }
+
   Tuple *total_tuple = dict_find(iterator, KEY_PLAN_TOTAL);
   if (total_tuple) {
     plan_store_clear();
@@ -74,7 +79,7 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
 
   Tuple *target_tuple = dict_find(iterator, KEY_TARGET_PACE);
   if (target_tuple) {
-    pace_engine_init(target_tuple->value->int32);
+    pace_engine_set_target(target_tuple->value->int32);
   }
 
   Tuple *distance_tuple = dict_find(iterator, KEY_CURRENT_DISTANCE);
@@ -82,8 +87,11 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
     uint32_t distance = (uint32_t)distance_tuple->value->int32;
     if (distance >= s_last_distance) {
       run_state_set_distance(distance);
+      s_last_distance = distance;
+    } else if (s_last_distance - distance > 100) {
+      run_state_set_distance(distance);
+      s_last_distance = distance;
     }
-    s_last_distance = distance;
     run_window_update();
   }
 
@@ -159,6 +167,9 @@ void comm_send_command(int command) {
     return;
   }
   dict_write_int32(iter, KEY_COMMAND, command);
+  if (command == CMD_START) {
+    s_last_distance = 0;
+  }
   app_message_outbox_send();
 }
 

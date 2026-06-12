@@ -4,6 +4,7 @@
 
 #include "comm.h"
 #include "features.h"
+#include "hr_monitor.h"
 #include "haptic_feedback.h"
 #include "menu_window.h"
 #include "pace_engine.h"
@@ -23,6 +24,7 @@ static void init(void) {
   features_init();
   pace_engine_init(settings_get()->target_pace_sec_per_km);
   haptic_init();
+  hr_monitor_init();
   run_state_init();
   run_session_init();
   plan_store_init();
@@ -37,6 +39,7 @@ static void init(void) {
 
 static void deinit(void) {
   comm_deinit();
+  hr_monitor_deinit();
   haptic_deinit();
   run_state_deinit();
   APP_LOG(APP_LOG_LEVEL_INFO, "Outrun shutting down.");

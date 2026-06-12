@@ -23,7 +23,7 @@ bool run_session_start_quick(void);
 bool run_session_start_planned(uint8_t plan_index);
 void run_session_stop(void);
 void run_session_tick(void);
-void run_session_on_pace_update(int32_t pace_sec_per_km);
 void run_session_on_segment_change(void);
 const PlanProgress *run_session_get_progress(void);
 bool run_session_is_planned(void);
+bool run_session_is_active(void);

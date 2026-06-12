@@ -114,37 +114,36 @@ void test_target_clamped_to_maximum(void) {
 
 // Test reset
 void test_reset_restores_initial_distance(void) {
-  pace_engine_update(400); // Get behind
+  pace_engine_update(400);
   pace_engine_reset();
   TEST_ASSERT_EQUAL(100, pace_engine_get_data()->distance_from_killer);
+}
+
+void test_set_target_preserves_current_pace(void) {
+  pace_engine_update(320);
+  pace_engine_set_target(280);
+  TEST_ASSERT_EQUAL(320, pace_engine_get_data()->current_pace_sec_per_km);
+  TEST_ASSERT_EQUAL(280, pace_engine_get_data()->target_pace_sec_per_km);
 }
 
 int main(void) {
   UNITY_BEGIN();
 
-  // pace_calculate_state tests
   RUN_TEST(test_pace_on_target_when_within_tolerance);
   RUN_TEST(test_pace_ahead_when_faster_than_target);
   RUN_TEST(test_pace_behind_when_slower_than_target);
   RUN_TEST(test_pace_danger_when_critically_behind);
-
-  // pace_engine_update tests
   RUN_TEST(test_update_returns_correct_state);
-
-  // Distance from killer tests
   RUN_TEST(test_distance_decreases_when_behind);
   RUN_TEST(test_distance_increases_when_ahead);
   RUN_TEST(test_distance_capped_at_zero);
   RUN_TEST(test_distance_capped_at_max);
-
-  // Target adjustment tests
   RUN_TEST(test_adjust_target_decreases);
   RUN_TEST(test_adjust_target_increases);
   RUN_TEST(test_target_clamped_to_minimum);
   RUN_TEST(test_target_clamped_to_maximum);
-
-  // Reset tests
   RUN_TEST(test_reset_restores_initial_distance);
+  RUN_TEST(test_set_target_preserves_current_pace);
 
   return UNITY_END();
 }

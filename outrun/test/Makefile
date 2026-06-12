@@ -57,7 +57,7 @@ $(TEST_PACE_ENGINE): test_pace_engine.c $(PACE_ENGINE_SRC) $(UNITY_SRC)
 	$(CC) $(CFLAGS) -o $@ $^
 
 $(TEST_RUN_STATE): test_run_state.c $(RUN_STATE_SRC) $(UNITY_SRC)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -DRUN_STATE_HOST_TEST -o $@ $^
 
 $(TEST_FEATURES): test_features.c $(FEATURES_SRC) $(UNITY_SRC)
 	$(CC) $(CFLAGS) -o $@ $^
