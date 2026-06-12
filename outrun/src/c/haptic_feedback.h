@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "alert_engine.h"
 #include <pebble.h>
 
 /**
@@ -54,3 +55,12 @@ void haptic_start_heartbeat(bool behind);
  * Stop the continuous heartbeat.
  */
 void haptic_stop_heartbeat(void);
+
+/** Pacer alert patterns */
+void haptic_pace_too_slow(void);
+void haptic_pace_too_fast(void);
+void haptic_hr_too_high(void);
+void haptic_hr_too_low(void);
+void haptic_segment_change(void);
+void haptic_fire_alert(AlertType alert);
+

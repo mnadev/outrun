@@ -12,6 +12,7 @@ void run_state_init(void) {
   s_stats.elapsed_seconds = 0;
   s_stats.distance_meters = 0;
   s_stats.avg_pace_sec_per_km = 0;
+  s_stats.avg_hr_bpm = 0;
   s_stats.escaped = false;
 }
 
@@ -25,6 +26,7 @@ bool run_state_start(void) {
     s_stats.elapsed_seconds = 0;
     s_stats.distance_meters = 0;
     s_stats.avg_pace_sec_per_km = 0;
+    s_stats.avg_hr_bpm = 0;
     s_stats.escaped = false;
     return true;
   }
@@ -60,6 +62,7 @@ void run_state_reset(void) {
   s_stats.elapsed_seconds = 0;
   s_stats.distance_meters = 0;
   s_stats.avg_pace_sec_per_km = 0;
+  s_stats.avg_hr_bpm = 0;
   s_stats.escaped = false;
 }
 
@@ -83,3 +86,7 @@ void run_state_tick(void) {
 void run_state_add_distance(uint32_t meters) {
   s_stats.distance_meters += meters;
 }
+
+void run_state_set_distance(uint32_t meters) { s_stats.distance_meters = meters; }
+
+void run_state_set_avg_hr(uint32_t bpm) { s_stats.avg_hr_bpm = bpm; }

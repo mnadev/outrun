@@ -9,6 +9,7 @@
  */
 
 var PaceCalculator = require('./pace_calculator');
+var PlanPresets = require('./plan_presets');
 var StravaAuth = require('./strava_auth');
 var StravaSegments = require('./strava_segments');
 var ServerClient = require('./server_client');
@@ -30,7 +31,14 @@ var Keys = {
     SEGMENT_NAME: 5,
     RIVAL_NAME: 6,
     RIVAL_TIME: 7,
-    CONNECTED: 8
+    CONNECTED: 8,
+    CURRENT_DISTANCE: 9,
+    HEART_RATE: 10,
+    PLAN_INDEX: 11,
+    PLAN_NAME: 12,
+    PLAN_SEG_COUNT: 13,
+    PLAN_DATA: 14,
+    PLAN_TOTAL: 15
 };
 
 // Commands from watch
@@ -44,11 +52,18 @@ var Commands = {
 /**
  * Send pace data to the watch
  */
+var debugSimulatorTimer = null;
+var debugLat = 37.7749;
+var debugLng = -122.4194;
+var debugHr = 130;
+var debugPaceOffset = 0;
+
 function sendPaceUpdate(currentPace, targetPace) {
     var message = {};
     message[Keys.CURRENT_PACE] = currentPace;
     message[Keys.TARGET_PACE] = targetPace;
     message[Keys.IS_RUNNING] = isTracking ? 1 : 0;
+    message[Keys.CURRENT_DISTANCE] = paceCalculator.getTotalDistance();
 
     Pebble.sendAppMessage(message,
         function () {
@@ -63,6 +78,59 @@ function sendPaceUpdate(currentPace, targetPace) {
 /**
  * Send connected status to watch
  */
+function sendHeartRate(bpm) {
+    var message = {};
+    message[Keys.HEART_RATE] = bpm;
+
+    Pebble.sendAppMessage(message,
+        function () {
+            console.log('HR update sent: ' + bpm);
+        },
+        function (e) {
+            console.log('Failed to send HR update: ' + e.error);
+        }
+    );
+}
+
+function sendPlan(planIndex, plan, totalPlans) {
+    var packed = PlanPresets.encodePlan(plan.segments);
+    var message = {};
+    message[Keys.PLAN_TOTAL] = planIndex === 0 ? totalPlans : undefined;
+    message[Keys.PLAN_INDEX] = planIndex;
+    message[Keys.PLAN_NAME] = plan.name;
+    message[Keys.PLAN_SEG_COUNT] = plan.segments.length;
+    message[Keys.PLAN_DATA] = packed;
+
+    if (message[Keys.PLAN_TOTAL] === undefined) {
+        delete message[Keys.PLAN_TOTAL];
+    }
+
+    return new Promise(function (resolve, reject) {
+        Pebble.sendAppMessage(message,
+            function () {
+                console.log('Plan sent: ' + plan.name);
+                resolve();
+            },
+            function (e) {
+                reject(e.error);
+            }
+        );
+    });
+}
+
+function sendAllPlans() {
+    var plans = PlanPresets.getPresetPlans();
+    var chain = Promise.resolve();
+
+    plans.forEach(function (plan, index) {
+        chain = chain.then(function () {
+            return sendPlan(index, plan, plans.length);
+        });
+    });
+
+    return chain;
+}
+
 function sendConnectedStatus() {
     var message = {};
     message[Keys.CONNECTED] = 1;
@@ -192,6 +260,50 @@ function handleLocationError(error) {
 /**
  * Start GPS tracking
  */
+function startDebugSimulator() {
+    if (debugSimulatorTimer) {
+        return;
+    }
+
+    console.log('Starting emulator debug simulator...');
+    debugSimulatorTimer = setInterval(function () {
+        if (!isTracking) {
+            return;
+        }
+
+        var targetPace = paceCalculator.getTargetPace();
+        var simulatedPace = targetPace + debugPaceOffset;
+        var metersPerSecond = 1000 / simulatedPace;
+        var deltaLat = (metersPerSecond / 111000);
+
+        debugLat += deltaLat;
+        debugLng += deltaLat * 0.2;
+        debugPaceOffset = (debugPaceOffset + 1) % 40 - 20;
+        debugHr = 125 + (debugPaceOffset * 2);
+
+        var location = {
+            lat: debugLat,
+            lng: debugLng,
+            accuracy: 5,
+            timestamp: Date.now()
+        };
+
+        paceCalculator.addLocation(location);
+        var pace = paceCalculator.getCurrentPace();
+        if (pace > 0) {
+            sendPaceUpdate(pace, targetPace);
+        }
+        sendHeartRate(debugHr);
+    }, 1000);
+}
+
+function stopDebugSimulator() {
+    if (debugSimulatorTimer) {
+        clearInterval(debugSimulatorTimer);
+        debugSimulatorTimer = null;
+    }
+}
+
 function startTracking() {
     if (isTracking) return;
 
@@ -203,6 +315,11 @@ function startTracking() {
 
     // Load cached segments
     StravaSegments.loadCachedSegments();
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        startDebugSimulator();
+        return;
+    }
 
     var options = {
         enableHighAccuracy: true,
@@ -225,6 +342,8 @@ function stopTracking() {
 
     console.log('Stopping GPS tracking...');
     isTracking = false;
+
+    stopDebugSimulator();
 
     if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
@@ -327,6 +446,9 @@ Pebble.addEventListener('ready', function () {
     });
 
     sendConnectedStatus();
+    sendAllPlans().catch(function (err) {
+        console.log('Failed to send plans: ' + err);
+    });
 
     // Load cached segments on startup
     if (StravaAuth.isAuthenticated()) {

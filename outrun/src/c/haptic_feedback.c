@@ -96,3 +96,67 @@ void haptic_stop_heartbeat(void) {
   }
   vibes_cancel();
 }
+
+static const uint32_t PACE_SLOW_SEGMENTS[] = {80, 60, 80, 60, 80};
+static const VibePattern PACE_SLOW_PATTERN = {
+    .durations = PACE_SLOW_SEGMENTS,
+    .num_segments = ARRAY_LENGTH(PACE_SLOW_SEGMENTS)};
+
+static const uint32_t PACE_FAST_SEGMENTS[] = {250};
+static const VibePattern PACE_FAST_PATTERN = {
+    .durations = PACE_FAST_SEGMENTS,
+    .num_segments = ARRAY_LENGTH(PACE_FAST_SEGMENTS)};
+
+static const uint32_t HR_HIGH_SEGMENTS[] = {200, 80, 200};
+static const VibePattern HR_HIGH_PATTERN = {
+    .durations = HR_HIGH_SEGMENTS,
+    .num_segments = ARRAY_LENGTH(HR_HIGH_SEGMENTS)};
+
+static const uint32_t HR_LOW_SEGMENTS[] = {350, 80, 100};
+static const VibePattern HR_LOW_PATTERN = {
+    .durations = HR_LOW_SEGMENTS,
+    .num_segments = ARRAY_LENGTH(HR_LOW_SEGMENTS)};
+
+static const uint32_t SEGMENT_CHANGE_SEGMENTS[] = {80, 60, 200, 60, 80};
+static const VibePattern SEGMENT_CHANGE_PATTERN = {
+    .durations = SEGMENT_CHANGE_SEGMENTS,
+    .num_segments = ARRAY_LENGTH(SEGMENT_CHANGE_SEGMENTS)};
+
+void haptic_pace_too_slow(void) {
+  vibes_enqueue_custom_pattern(PACE_SLOW_PATTERN);
+}
+
+void haptic_pace_too_fast(void) {
+  vibes_enqueue_custom_pattern(PACE_FAST_PATTERN);
+}
+
+void haptic_hr_too_high(void) {
+  vibes_enqueue_custom_pattern(HR_HIGH_PATTERN);
+}
+
+void haptic_hr_too_low(void) {
+  vibes_enqueue_custom_pattern(HR_LOW_PATTERN);
+}
+
+void haptic_segment_change(void) {
+  vibes_enqueue_custom_pattern(SEGMENT_CHANGE_PATTERN);
+}
+
+void haptic_fire_alert(AlertType alert) {
+  switch (alert) {
+  case ALERT_PACE_TOO_SLOW:
+    haptic_pace_too_slow();
+    break;
+  case ALERT_PACE_TOO_FAST:
+    haptic_pace_too_fast();
+    break;
+  case ALERT_HR_TOO_HIGH:
+    haptic_hr_too_high();
+    break;
+  case ALERT_HR_TOO_LOW:
+    haptic_hr_too_low();
+    break;
+  default:
+    break;
+  }
+}

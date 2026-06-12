@@ -8,27 +8,14 @@
 #include "run_state.h"
 #include <pebble.h>
 
-/**
- * Initialize AppMessage communication.
- */
+typedef void (*CommPlanReceivedCallback)(void);
+
 void comm_init(void);
-
-/**
- * Deinitialize AppMessage communication.
- */
 void comm_deinit(void);
-
-/**
- * Send a command to the phone (start/stop/pause/resume).
- */
 void comm_send_command(int command);
-
-/**
- * Send target pace update to phone.
- */
 void comm_send_target_pace(int32_t pace);
+void comm_set_plan_received_callback(CommPlanReceivedCallback callback);
 
-// Commands
 #define CMD_START 1
 #define CMD_STOP 2
 #define CMD_PAUSE 3

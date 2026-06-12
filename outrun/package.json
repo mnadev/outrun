@@ -30,7 +30,14 @@
       "SEGMENT_NAME",
       "RIVAL_NAME",
       "RIVAL_TIME",
-      "CONNECTED"
+      "CONNECTED",
+      "CURRENT_DISTANCE",
+      "HEART_RATE",
+      "PLAN_INDEX",
+      "PLAN_NAME",
+      "PLAN_SEG_COUNT",
+      "PLAN_DATA",
+      "PLAN_TOTAL"
     ],
     "resources": {
       "media": []

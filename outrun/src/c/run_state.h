@@ -22,6 +22,7 @@ typedef struct {
   uint32_t elapsed_seconds;     // Total time running
   uint32_t distance_meters;     // Total distance (from phone GPS)
   uint32_t avg_pace_sec_per_km; // Average pace
+  uint32_t avg_hr_bpm;          // Average heart rate
   bool escaped;                 // Did we outrun the killer?
 } RunStats;
 
@@ -84,3 +85,13 @@ void run_state_tick(void);
  * @param meters Distance traveled in meters
  */
 void run_state_add_distance(uint32_t meters);
+
+/**
+ * Set total distance from phone GPS snapshot.
+ */
+void run_state_set_distance(uint32_t meters);
+
+/**
+ * Update average heart rate.
+ */
+void run_state_set_avg_hr(uint32_t bpm);

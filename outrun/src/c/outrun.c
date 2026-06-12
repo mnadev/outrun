@@ -1,42 +1,44 @@
 /**
- * outrun.c - Main entry point for Outrun watchapp
- *
- * "The Social Horror Pacer" - A gamified survival fitness app
- * that turns runs into slasher-movie escapes.
+ * outrun.c - Main entry point for Outrun running pacer watchapp
  */
 
 #include "comm.h"
 #include "features.h"
 #include "haptic_feedback.h"
+#include "menu_window.h"
 #include "pace_engine.h"
+#include "plan.h"
+#include "plans_window.h"
+#include "run_session.h"
 #include "run_state.h"
-#include "run_window.h"
+#include "settings.h"
 #include <pebble.h>
 
-// Default target pace: 5:00 per km (300 seconds)
-#define DEFAULT_TARGET_PACE_SEC 300
+static void on_plans_received(void) { plans_window_reload(); }
 
 static void init(void) {
-  APP_LOG(APP_LOG_LEVEL_INFO, "Outrun initializing...");
+  APP_LOG(APP_LOG_LEVEL_INFO, "Outrun pacer initializing...");
 
-  // Initialize subsystems
+  settings_init();
   features_init();
-  pace_engine_init(DEFAULT_TARGET_PACE_SEC);
+  pace_engine_init(settings_get()->target_pace_sec_per_km);
   haptic_init();
   run_state_init();
-  comm_init(); // Initialize phone communication
+  run_session_init();
+  plan_store_init();
+  plan_store_load_defaults();
+  comm_init();
+  comm_set_plan_received_callback(on_plans_received);
 
-  // Push the main run window
-  run_window_push();
+  menu_window_push();
 
-  APP_LOG(APP_LOG_LEVEL_INFO, "Outrun ready. Waiting for phone connection...");
+  APP_LOG(APP_LOG_LEVEL_INFO, "Outrun pacer ready.");
 }
 
 static void deinit(void) {
   comm_deinit();
   haptic_deinit();
   run_state_deinit();
-
   APP_LOG(APP_LOG_LEVEL_INFO, "Outrun shutting down.");
 }
 
