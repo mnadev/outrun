@@ -11,6 +11,7 @@
 #include "run_session.h"
 #include "run_state.h"
 #include "settings.h"
+#include "stalker_themes.h"
 
 static Window *s_window;
 static TextLayer *s_pace_label;
@@ -26,7 +27,6 @@ static char s_pace_buffer[32];
 static char s_hr_buffer[24];
 static char s_stats_buffer[40];
 static char s_segment_buffer[40];
-static char s_status_buffer[32];
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed);
 static void select_click_handler(ClickRecognizerRef recognizer, void *context);
@@ -81,28 +81,49 @@ void run_window_update(void) {
   RunState state = run_state_get();
 
   if (s_show_summary && state == RUN_COMPLETE) {
-    char elapsed[12];
+    const ThemeConfig *theme = themes_get_current_config();
     char pace_str[12];
-    char dist[16];
-    format_elapsed(elapsed, sizeof(elapsed), stats->elapsed_seconds);
-    settings_format_pace(pace_str, sizeof(pace_str), stats->avg_pace_sec_per_km);
-    settings_format_distance(dist, sizeof(dist), stats->distance_meters);
+    int32_t target = pace_engine_get_data()->target_pace_sec_per_km;
+    uint32_t escape_threshold = (uint32_t)(target + PACE_TOLERANCE_DANGER);
 
-    snprintf(s_pace_buffer, sizeof(s_pace_buffer), "DONE");
-    text_layer_set_text(s_pace_label, "Summary");
-    text_layer_set_text(s_pace_layer, s_pace_buffer);
+    // Verdict: did we keep ahead of the killer? (neutral when no GPS data)
+    bool has_pace = stats->avg_pace_sec_per_km > 0;
+    bool escaped = has_pace && stats->avg_pace_sec_per_km <= escape_threshold;
 
-    if (hr_monitor_is_available() && stats->avg_hr_bpm > 0) {
-      snprintf(s_hr_buffer, sizeof(s_hr_buffer), "Avg HR %lu",
-               (unsigned long)stats->avg_hr_bpm);
-    } else {
-      snprintf(s_hr_buffer, sizeof(s_hr_buffer), " ");
+    const char *verdict = "Summary";
+    if (has_pace) {
+      verdict = escaped ? theme->escape_message : theme->caught_message;
     }
+    text_layer_set_text(s_pace_label, verdict);
+#if defined(PBL_COLOR)
+    GColor verdict_color =
+        !has_pace ? GColorWhite : (escaped ? GColorGreen : GColorRed);
+    text_layer_set_text_color(s_pace_label, verdict_color);
+#endif
+
+    // Hero stat: elapsed time.
+    format_elapsed(s_pace_buffer, sizeof(s_pace_buffer), stats->elapsed_seconds);
+    text_layer_set_text(s_pace_layer, s_pace_buffer);
+    text_layer_set_text_color(s_pace_layer, GColorWhite);
+
+    // Distance, then average pace, then average HR -- one per line.
+    settings_format_distance(s_hr_buffer, sizeof(s_hr_buffer),
+                             stats->distance_meters);
+    layer_set_hidden(text_layer_get_layer(s_hr_layer), false);
     text_layer_set_text(s_hr_layer, s_hr_buffer);
 
-    snprintf(s_stats_buffer, sizeof(s_stats_buffer), "%s  %s\n%s", elapsed, dist, pace_str);
+    settings_format_pace(pace_str, sizeof(pace_str), stats->avg_pace_sec_per_km);
+    snprintf(s_stats_buffer, sizeof(s_stats_buffer), "%s /km", pace_str);
     text_layer_set_text(s_stats_layer, s_stats_buffer);
-    text_layer_set_text(s_segment_layer, "");
+
+    if (stats->avg_hr_bpm > 0) {
+      snprintf(s_segment_buffer, sizeof(s_segment_buffer), "Avg HR %lu",
+               (unsigned long)stats->avg_hr_bpm);
+    } else {
+      s_segment_buffer[0] = '\0';
+    }
+    text_layer_set_text(s_segment_layer, s_segment_buffer);
+
     text_layer_set_text(s_status_layer, "SELECT to exit");
     return;
   }
@@ -112,6 +133,26 @@ void run_window_update(void) {
   settings_format_pace(target, sizeof(target), pace->target_pace_sec_per_km);
   snprintf(s_pace_buffer, sizeof(s_pace_buffer), "%s / %s", current, target);
   text_layer_set_text(s_pace_layer, s_pace_buffer);
+
+#if defined(PBL_COLOR)
+  // Glanceable pace feedback: green ahead, yellow behind, red danger.
+  GColor pace_color = GColorWhite;
+  switch (pace->state) {
+  case PACE_AHEAD:
+    pace_color = GColorGreen;
+    break;
+  case PACE_BEHIND:
+    pace_color = GColorYellow;
+    break;
+  case PACE_DANGER:
+    pace_color = GColorRed;
+    break;
+  default:
+    pace_color = GColorWhite;
+    break;
+  }
+  text_layer_set_text_color(s_pace_layer, pace_color);
+#endif
 
   if (hr_monitor_is_available()) {
     uint8_t bpm = hr_monitor_get_bpm();
@@ -165,21 +206,52 @@ void run_window_update(void) {
     text_layer_set_text(s_segment_layer, "");
   }
 
+  const ThemeConfig *theme = themes_get_current_config();
+  const char *status = "";
+#if defined(PBL_COLOR)
+  GColor status_color = GColorWhite;
+#endif
   switch (state) {
   case RUN_IDLE:
-    snprintf(s_status_buffer, sizeof(s_status_buffer), "SELECT to start");
+    status = "SELECT to start";
     break;
   case RUN_ACTIVE:
-    snprintf(s_status_buffer, sizeof(s_status_buffer), "Running");
+    // Speak in the theme's voice based on how the chase is going.
+    switch (pace->state) {
+    case PACE_AHEAD:
+      status = theme->ahead_message; // e.g. "OUTRUNNING!"
+#if defined(PBL_COLOR)
+      status_color = GColorGreen;
+#endif
+      break;
+    case PACE_BEHIND:
+      status = theme->behind_message; // e.g. "IT'S GAINING!"
+#if defined(PBL_COLOR)
+      status_color = GColorYellow;
+#endif
+      break;
+    case PACE_DANGER:
+      status = theme->behind_message;
+#if defined(PBL_COLOR)
+      status_color = GColorRed;
+#endif
+      break;
+    default:
+      status = "On pace";
+      break;
+    }
     break;
   case RUN_PAUSED:
-    snprintf(s_status_buffer, sizeof(s_status_buffer), "Paused");
+    status = "Paused";
     break;
   case RUN_COMPLETE:
-    snprintf(s_status_buffer, sizeof(s_status_buffer), "Complete");
+    status = "Complete";
     break;
   }
-  text_layer_set_text(s_status_layer, s_status_buffer);
+  text_layer_set_text(s_status_layer, status);
+#if defined(PBL_COLOR)
+  text_layer_set_text_color(s_status_layer, status_color);
+#endif
 }
 
 void run_window_show_segment_alert(const char *segment_name, const char *rival_name) {

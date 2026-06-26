@@ -13,6 +13,7 @@
 #include "run_session.h"
 #include "run_state.h"
 #include "settings.h"
+#include "stalker_themes.h"
 #include <pebble.h>
 
 static void on_plans_received(void) { plans_window_reload(); }
@@ -22,6 +23,7 @@ static void init(void) {
 
   settings_init();
   features_init();
+  themes_init();
   pace_engine_init(settings_get()->target_pace_sec_per_km);
   haptic_init();
   hr_monitor_init();
