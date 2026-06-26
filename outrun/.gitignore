@@ -22,3 +22,6 @@ Thumbs.db
 
 # Pebble SDK cache
 .pebble-builds/
+
+# Waf build lock (machine-specific environment dump)
+.lock-waf_*
