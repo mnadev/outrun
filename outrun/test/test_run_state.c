@@ -4,8 +4,13 @@
 
 #include "../../src/c/run_state.h"
 #include "../unity/unity.h"
+#include "support/mock_watch.h"
 
-void setUp(void) { run_state_init(); }
+void setUp(void) {
+  mock_watch_install();
+  mock_watch_reset();
+  run_state_init();
+}
 
 void tearDown(void) { run_state_deinit(); }
 
@@ -88,11 +93,11 @@ void test_stats_reset_on_start(void) {
 
 void test_tick_increments_elapsed_when_active(void) {
   run_state_start();
-  run_state_test_advance(1);
+  mock_watch_advance(1);
   run_state_tick();
-  run_state_test_advance(1);
+  mock_watch_advance(1);
   run_state_tick();
-  run_state_test_advance(1);
+  mock_watch_advance(1);
   run_state_tick();
 
   TEST_ASSERT_EQUAL(3, run_state_get_stats()->elapsed_seconds);
@@ -100,12 +105,12 @@ void test_tick_increments_elapsed_when_active(void) {
 
 void test_tick_does_not_increment_when_paused(void) {
   run_state_start();
-  run_state_test_advance(1);
+  mock_watch_advance(1);
   run_state_tick();
   run_state_pause();
-  run_state_test_advance(1);
+  mock_watch_advance(1);
   run_state_tick();
-  run_state_test_advance(1);
+  mock_watch_advance(1);
   run_state_tick();
 
   TEST_ASSERT_EQUAL(1, run_state_get_stats()->elapsed_seconds);
@@ -124,7 +129,7 @@ void test_avg_pace_calculated_correctly(void) {
   run_state_add_distance(1000);
 
   for (int i = 0; i < 300; i++) {
-    run_state_test_advance(1);
+    mock_watch_advance(1);
     run_state_tick();
   }
 

@@ -9,6 +9,8 @@
 #include "run_session.h"
 #include "run_window.h"
 
+#include <pebble.h>
+
 enum {
   KEY_CURRENT_PACE = 0,
   KEY_TARGET_PACE = 1,

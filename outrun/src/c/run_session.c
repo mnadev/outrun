@@ -10,8 +10,6 @@
 #include "run_state.h"
 #include "settings.h"
 
-#include <pebble.h>
-
 static SessionType s_session_type;
 static uint8_t s_pending_plan_index;
 static PlanProgress s_plan_progress;

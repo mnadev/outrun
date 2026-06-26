@@ -6,7 +6,6 @@
 
 #include "pace_engine.h"
 #include "run_state.h"
-#include <pebble.h>
 
 typedef void (*CommPlanReceivedCallback)(void);
 

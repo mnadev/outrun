@@ -1,17 +1,19 @@
 /**
- * haptic_feedback.h - Horror-themed vibration patterns
+ * haptic_feedback.h - Horror-themed vibration patterns.
  *
- * Provides different vibration patterns to convey pace state
- * through tactile feedback.
+ * Public API used by the run loop. Implemented as thin wrappers that route
+ * semantic events through the active WatchInterface, so this header carries
+ * no SDK dependency (callers stay portable).
  */
 
 #pragma once
 
+#include <stdbool.h>
+
 #include "alert_engine.h"
-#include <pebble.h>
 
 /**
- * Initialize the haptic feedback system.
+ * Initialize the haptic feedback system (resets heartbeat state).
  */
 void haptic_init(void);
 
@@ -63,4 +65,3 @@ void haptic_hr_too_high(void);
 void haptic_hr_too_low(void);
 void haptic_segment_change(void);
 void haptic_fire_alert(AlertType alert);
-

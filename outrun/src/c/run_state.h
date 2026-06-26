@@ -95,6 +95,3 @@ void run_state_set_distance(uint32_t meters);
  * Update average heart rate.
  */
 void run_state_set_avg_hr(uint32_t bpm);
-
-/** Advance mock wall clock in host unit tests. */
-void run_state_test_advance(uint32_t seconds);

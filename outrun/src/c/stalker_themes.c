@@ -4,6 +4,7 @@
 
 #include "stalker_themes.h"
 #include "features.h"
+#include "watch_interface.h"
 
 // Current theme
 static StalkerTheme s_current_theme = THEME_CLASSIC;
@@ -137,8 +138,11 @@ const ThemeConfig *themes_get_current_config(void) {
 }
 
 static void enqueue_pattern(const uint32_t *segments, uint32_t count) {
-  VibePattern pattern = {.durations = segments, .num_segments = count};
-  vibes_enqueue_custom_pattern(pattern);
+  const WatchInterface *w = watch();
+  if (w && w->play) {
+    HapticPattern pattern = {.durations = segments, .count = count};
+    w->play(&pattern);
+  }
 }
 
 void themes_haptic_pulse(void) {

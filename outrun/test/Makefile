@@ -11,6 +11,10 @@ RUN_STATE_SRC = ../src/c/run_state.c
 FEATURES_SRC = ../src/c/features.c
 ALERT_ENGINE_SRC = ../src/c/alert_engine.c
 PLAN_SRC = ../src/c/plan.c
+HAPTIC_PATTERNS_SRC = ../src/c/haptic_patterns.c
+WATCH_SRC = ../src/c/watch.c
+FEEDBACK_SRC = ../src/c/feedback.c
+MOCK_WATCH_SRC = support/mock_watch.c
 
 # Test executables
 TEST_PACE_ENGINE = test_pace_engine_runner
@@ -18,12 +22,14 @@ TEST_RUN_STATE = test_run_state_runner
 TEST_FEATURES = test_features_runner
 TEST_ALERT_ENGINE = test_alert_engine_runner
 TEST_PLAN = test_plan_runner
+TEST_HAPTIC_PATTERNS = test_haptic_patterns_runner
+TEST_FEEDBACK = test_feedback_runner
 
 .PHONY: all test clean
 
 all: test
 
-test: $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN)
+test: $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK)
 	@echo "========================================="
 	@echo "Running Pace Engine Tests..."
 	@echo "========================================="
@@ -50,14 +56,24 @@ test: $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE
 	@./$(TEST_PLAN)
 	@echo ""
 	@echo "========================================="
+	@echo "Running Haptic Pattern Tests..."
+	@echo "========================================="
+	@./$(TEST_HAPTIC_PATTERNS)
+	@echo ""
+	@echo "========================================="
+	@echo "Running Feedback Routing Tests..."
+	@echo "========================================="
+	@./$(TEST_FEEDBACK)
+	@echo ""
+	@echo "========================================="
 	@echo "All tests complete!"
 	@echo "========================================="
 
 $(TEST_PACE_ENGINE): test_pace_engine.c $(PACE_ENGINE_SRC) $(UNITY_SRC)
 	$(CC) $(CFLAGS) -o $@ $^
 
-$(TEST_RUN_STATE): test_run_state.c $(RUN_STATE_SRC) $(UNITY_SRC)
-	$(CC) $(CFLAGS) -DRUN_STATE_HOST_TEST -o $@ $^
+$(TEST_RUN_STATE): test_run_state.c $(RUN_STATE_SRC) $(WATCH_SRC) $(MOCK_WATCH_SRC) $(UNITY_SRC)
+	$(CC) $(CFLAGS) -o $@ $^
 
 $(TEST_FEATURES): test_features.c $(FEATURES_SRC) $(UNITY_SRC)
 	$(CC) $(CFLAGS) -o $@ $^
@@ -68,6 +84,12 @@ $(TEST_ALERT_ENGINE): test_alert_engine.c $(ALERT_ENGINE_SRC) $(UNITY_SRC)
 $(TEST_PLAN): test_plan.c $(PLAN_SRC) $(UNITY_SRC)
 	$(CC) $(CFLAGS) -o $@ $^
 
+$(TEST_HAPTIC_PATTERNS): test_haptic_patterns.c $(HAPTIC_PATTERNS_SRC) $(UNITY_SRC)
+	$(CC) $(CFLAGS) -o $@ $^
+
+$(TEST_FEEDBACK): test_feedback.c $(FEEDBACK_SRC) $(WATCH_SRC) $(HAPTIC_PATTERNS_SRC) $(MOCK_WATCH_SRC) $(UNITY_SRC)
+	$(CC) $(CFLAGS) -o $@ $^
+
 clean:
-	rm -f $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN)
+	rm -f $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK)
 	rm -rf *.dSYM
