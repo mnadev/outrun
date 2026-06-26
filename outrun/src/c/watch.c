@@ -32,3 +32,15 @@ bool watch_heart_rate_available(void) {
   }
   return false;
 }
+
+void watch_heart_rate_start(void) {
+  if (s_watch && s_watch->heart_rate_start) {
+    s_watch->heart_rate_start();
+  }
+}
+
+void watch_heart_rate_stop(void) {
+  if (s_watch && s_watch->heart_rate_stop) {
+    s_watch->heart_rate_stop();
+  }
+}

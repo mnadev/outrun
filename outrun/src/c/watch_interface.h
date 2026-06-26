@@ -31,6 +31,9 @@ typedef struct {
   uint8_t (*heart_rate)(void);
   // Whether a heart-rate source is currently usable.
   bool (*heart_rate_available)(void);
+  // Begin / end heart-rate sampling (sensor power management).
+  void (*heart_rate_start)(void);
+  void (*heart_rate_stop)(void);
 } WatchInterface;
 
 /** Inject the active platform implementation (call once at startup). */
@@ -43,3 +46,5 @@ const WatchInterface *watch(void);
 uint32_t watch_now_seconds(void);
 uint8_t watch_heart_rate(void);
 bool watch_heart_rate_available(void);
+void watch_heart_rate_start(void);
+void watch_heart_rate_stop(void);

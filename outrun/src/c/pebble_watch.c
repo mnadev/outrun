@@ -34,12 +34,18 @@ static bool pebble_heart_rate_available(void) {
   return hr_monitor_is_available();
 }
 
+static void pebble_heart_rate_start(void) { hr_monitor_start(); }
+
+static void pebble_heart_rate_stop(void) { hr_monitor_stop(); }
+
 static const WatchInterface PEBBLE_WATCH = {
     .play = pebble_play,
     .cancel = pebble_cancel,
     .now_seconds = pebble_now_seconds,
     .heart_rate = pebble_heart_rate,
     .heart_rate_available = pebble_heart_rate_available,
+    .heart_rate_start = pebble_heart_rate_start,
+    .heart_rate_stop = pebble_heart_rate_stop,
 };
 
 void pebble_watch_install(void) { watch_set(&PEBBLE_WATCH); }

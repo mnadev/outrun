@@ -26,12 +26,18 @@ static uint8_t mock_hr(void) { return s_hr; }
 
 static bool mock_hr_available(void) { return s_hr_available; }
 
+static void mock_hr_start(void) {}
+
+static void mock_hr_stop(void) {}
+
 static const WatchInterface MOCK_WATCH = {
     .play = mock_play,
     .cancel = mock_cancel,
     .now_seconds = mock_now,
     .heart_rate = mock_hr,
     .heart_rate_available = mock_hr_available,
+    .heart_rate_start = mock_hr_start,
+    .heart_rate_stop = mock_hr_stop,
 };
 
 void mock_watch_install(void) { watch_set(&MOCK_WATCH); }

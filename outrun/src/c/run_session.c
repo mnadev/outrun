@@ -5,10 +5,11 @@
 #include "run_session.h"
 #include "comm.h"
 #include "haptic_feedback.h"
-#include "hr_monitor.h"
+#include "hr_stats.h"
 #include "pace_engine.h"
 #include "run_state.h"
 #include "settings.h"
+#include "watch_interface.h"
 
 static SessionType s_session_type;
 static uint8_t s_pending_plan_index;
@@ -16,6 +17,7 @@ static PlanProgress s_plan_progress;
 static AlertState s_alert_state;
 static uint32_t s_segment_start_elapsed;
 static uint32_t s_segment_start_distance;
+static HrStats s_hr_stats;
 
 static void apply_segment_targets(const PlanSegment *segment) {
   if (!segment) {
@@ -33,8 +35,8 @@ static void build_alert_input(AlertInput *input, int32_t current_pace) {
   const PlanSegment *segment = plan_progress_current_segment(&s_plan_progress);
 
   input->current_pace_sec_per_km = current_pace;
-  input->current_hr = hr_monitor_get_bpm();
-  input->hr_available = hr_monitor_is_available();
+  input->current_hr = watch_heart_rate();
+  input->hr_available = watch_heart_rate_available();
   input->pace_alerts_enabled = settings->pace_alerts_enabled;
   input->hr_alerts_enabled = settings->hr_alerts_enabled;
 
@@ -72,6 +74,7 @@ void run_session_init(void) {
   alert_engine_init(&s_alert_state);
   s_segment_start_elapsed = 0;
   s_segment_start_distance = 0;
+  hr_stats_reset(&s_hr_stats);
 }
 
 void run_session_prepare_planned(uint8_t plan_index) {
@@ -93,8 +96,8 @@ bool run_session_start_quick(void) {
   pace_engine_init(settings->target_pace_sec_per_km);
   pace_engine_reset();
   alert_engine_reset(&s_alert_state);
-  hr_monitor_reset_avg();
-  hr_monitor_start();
+  hr_stats_reset(&s_hr_stats);
+  watch_heart_rate_start();
   comm_send_command(CMD_START);
   return true;
 }
@@ -112,8 +115,8 @@ bool run_session_start_planned(uint8_t plan_index) {
   s_segment_start_elapsed = 0;
   s_segment_start_distance = 0;
   alert_engine_reset(&s_alert_state);
-  hr_monitor_reset_avg();
-  hr_monitor_start();
+  hr_stats_reset(&s_hr_stats);
+  watch_heart_rate_start();
 
   const PlanSegment *segment = plan_progress_current_segment(&s_plan_progress);
   apply_segment_targets(segment);
@@ -123,7 +126,7 @@ bool run_session_start_planned(uint8_t plan_index) {
 }
 
 void run_session_stop(void) {
-  hr_monitor_stop();
+  watch_heart_rate_stop();
   comm_send_command(CMD_STOP);
   s_session_type = SESSION_NONE;
   plan_progress_init(&s_plan_progress);
@@ -144,7 +147,8 @@ void run_session_tick(void) {
   }
 
   const RunStats *stats = run_state_get_stats();
-  run_state_set_avg_hr(hr_monitor_get_avg_bpm());
+  hr_stats_add(&s_hr_stats, watch_heart_rate());
+  run_state_set_avg_hr(hr_stats_average(&s_hr_stats));
 
   if (s_session_type == SESSION_PLANNED && s_plan_progress.active) {
     uint32_t seg_elapsed = stats->elapsed_seconds - s_segment_start_elapsed;

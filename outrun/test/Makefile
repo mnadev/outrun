@@ -14,6 +14,7 @@ PLAN_SRC = ../src/c/plan.c
 HAPTIC_PATTERNS_SRC = ../src/c/haptic_patterns.c
 WATCH_SRC = ../src/c/watch.c
 FEEDBACK_SRC = ../src/c/feedback.c
+HR_STATS_SRC = ../src/c/hr_stats.c
 MOCK_WATCH_SRC = support/mock_watch.c
 
 # Test executables
@@ -24,12 +25,13 @@ TEST_ALERT_ENGINE = test_alert_engine_runner
 TEST_PLAN = test_plan_runner
 TEST_HAPTIC_PATTERNS = test_haptic_patterns_runner
 TEST_FEEDBACK = test_feedback_runner
+TEST_HR_STATS = test_hr_stats_runner
 
 .PHONY: all test clean
 
 all: test
 
-test: $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK)
+test: $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK) $(TEST_HR_STATS)
 	@echo "========================================="
 	@echo "Running Pace Engine Tests..."
 	@echo "========================================="
@@ -66,6 +68,11 @@ test: $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE
 	@./$(TEST_FEEDBACK)
 	@echo ""
 	@echo "========================================="
+	@echo "Running HR Stats Tests..."
+	@echo "========================================="
+	@./$(TEST_HR_STATS)
+	@echo ""
+	@echo "========================================="
 	@echo "All tests complete!"
 	@echo "========================================="
 
@@ -90,6 +97,9 @@ $(TEST_HAPTIC_PATTERNS): test_haptic_patterns.c $(HAPTIC_PATTERNS_SRC) $(UNITY_S
 $(TEST_FEEDBACK): test_feedback.c $(FEEDBACK_SRC) $(WATCH_SRC) $(HAPTIC_PATTERNS_SRC) $(MOCK_WATCH_SRC) $(UNITY_SRC)
 	$(CC) $(CFLAGS) -o $@ $^
 
+$(TEST_HR_STATS): test_hr_stats.c $(HR_STATS_SRC) $(UNITY_SRC)
+	$(CC) $(CFLAGS) -o $@ $^
+
 clean:
-	rm -f $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK)
+	rm -f $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK) $(TEST_HR_STATS)
 	rm -rf *.dSYM
