@@ -377,6 +377,7 @@ static void window_unload(Window *window) {
 
 static void push_window(void) {
   s_window = window_create();
+  s_show_summary = false;
   window_set_click_config_provider(s_window, click_config_provider);
   window_set_window_handlers(s_window,
                              (WindowHandlers){.load = window_load, .unload = window_unload});
