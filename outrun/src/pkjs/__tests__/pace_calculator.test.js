@@ -128,4 +128,48 @@ describe('PaceCalculator', () => {
       expect(calculator.getCurrentPace()).toBe(0);
     });
   });
+
+  describe('getGpsTrack', () => {
+    test('returns empty array when no locations', () => {
+      expect(calculator.getGpsTrack()).toEqual([]);
+    });
+
+    test('emits real lat/lng with timestamps relative to start', () => {
+      const base = 1000000;
+      // addLocation stores lat/lng (NOT coords.latitude/longitude), so the
+      // track must read those same fields. Regression: it used to map
+      // loc.latitude/loc.longitude and produced undefined coordinates.
+      calculator.addLocation({
+        lat: 40.7128,
+        lng: -74.0060,
+        accuracy: 5,
+        timestamp: base
+      });
+      calculator.addLocation({
+        lat: 40.7133,
+        lng: -74.0060,
+        accuracy: 5,
+        timestamp: base + 1000
+      });
+      calculator.addLocation({
+        lat: 40.7138,
+        lng: -74.0060,
+        accuracy: 5,
+        timestamp: base + 2000
+      });
+
+      const track = calculator.getGpsTrack();
+      expect(track).toHaveLength(3);
+      expect(track[0].lat).toBeCloseTo(40.7128);
+      expect(track[0].lng).toBeCloseTo(-74.0060);
+      expect(track[0].timestamp).toBe(0);
+      expect(track[1].timestamp).toBe(1000);
+      expect(track[2].lat).toBeCloseTo(40.7138);
+      // Guard the original bug: coordinates must never be undefined.
+      track.forEach((pt) => {
+        expect(pt.lat).not.toBeUndefined();
+        expect(pt.lng).not.toBeUndefined();
+      });
+    });
+  });
 });

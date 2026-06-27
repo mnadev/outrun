@@ -175,20 +175,23 @@ PaceCalculator.prototype.getAveragePace = function () {
 
 /**
  * Get GPS track for server sync
- * Returns array of {lat, lng, timestamp}
+ * Returns array of {lat, lng, timestamp} with timestamps relative to start.
+ * Reads the lat/lng fields that addLocation() actually stores (the geolocation
+ * API uses coords.latitude/longitude, but addLocation normalizes to lat/lng).
  */
 PaceCalculator.prototype.getGpsTrack = function () {
   if (!this.startTime || this.locations.length === 0) {
     return [];
   }
 
+  var startTime = this.startTime;
   return this.locations.map(function (loc) {
     return {
-      lat: loc.latitude,
-      lng: loc.longitude,
-      timestamp: loc.timestamp - this.startTime
+      lat: loc.lat,
+      lng: loc.lng,
+      timestamp: loc.timestamp - startTime
     };
-  }, this);
+  });
 };
 
 module.exports = PaceCalculator;
