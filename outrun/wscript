@@ -47,8 +47,14 @@ def build(ctx):
     ctx.env = cached_env
 
     ctx.set_group('bundle')
+    # The bundle is built by webpack from js_entry_file's require() graph, so
+    # test files and installed deps never ship. Still, scope the source globs
+    # to keep node_modules and __tests__ out of the build inputs.
     ctx.pbl_bundle(binaries=binaries,
                    js=ctx.path.ant_glob(['src/pkjs/**/*.js',
                                          'src/pkjs/**/*.json',
-                                         'src/common/**/*.js']),
+                                         'src/common/**/*.js'],
+                                        excl=['src/pkjs/node_modules/**',
+                                              'src/pkjs/**/__tests__/**',
+                                              'src/pkjs/**/*.test.js']),
                    js_entry_file='src/pkjs/index.js')
