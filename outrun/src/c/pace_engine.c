@@ -50,15 +50,16 @@ PaceState pace_engine_update(int32_t current_pace_sec_per_km) {
   // Update state
   s_pace_data.state = pace_calculate_state(delta);
 
-  // Update "distance from killer" - decreases when behind, increases when ahead
-  // This is a conceptual metric that accumulates over time
-  if (delta > 0) {
+  // Update "distance from killer" - decreases when behind, increases when
+  // ahead. A deadband within PACE_TOLERANCE_SOFT holds the lead steady while
+  // you're on target, so the bar doesn't slowly drift when you're pacing well.
+  if (delta > PACE_TOLERANCE_SOFT) {
     // Behind pace - killer is gaining
     s_pace_data.distance_from_killer -= (delta / 5);
     if (s_pace_data.distance_from_killer < 0) {
       s_pace_data.distance_from_killer = 0;
     }
-  } else if (delta < 0) {
+  } else if (delta < -PACE_TOLERANCE_SOFT) {
     // Ahead of pace - extending lead
     s_pace_data.distance_from_killer -=
         (delta / 5); // delta is negative, so this adds
@@ -66,6 +67,7 @@ PaceState pace_engine_update(int32_t current_pace_sec_per_km) {
       s_pace_data.distance_from_killer = 200; // Cap the lead
     }
   }
+  // else: within tolerance (on target) -> hold the lead steady.
 
   return s_pace_data.state;
 }

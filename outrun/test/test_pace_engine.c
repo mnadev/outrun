@@ -73,6 +73,20 @@ void test_distance_increases_when_ahead(void) {
   TEST_ASSERT_TRUE(pace_engine_get_data()->distance_from_killer > initial);
 }
 
+void test_distance_holds_steady_when_on_target(void) {
+  const PaceData *data = pace_engine_get_data();
+  int32_t initial = data->distance_from_killer;
+
+  // Small deltas within tolerance (<= PACE_TOLERANCE_SOFT) must not move the
+  // lead, so a well-paced runner's bar doesn't slowly drift.
+  pace_engine_update(305); // +5 behind, within tolerance
+  TEST_ASSERT_EQUAL(initial, pace_engine_get_data()->distance_from_killer);
+  pace_engine_update(295); // -5 ahead, within tolerance
+  TEST_ASSERT_EQUAL(initial, pace_engine_get_data()->distance_from_killer);
+  pace_engine_update(310); // +10, boundary of tolerance
+  TEST_ASSERT_EQUAL(initial, pace_engine_get_data()->distance_from_killer);
+}
+
 void test_distance_capped_at_zero(void) {
   // Run way behind multiple times
   for (int i = 0; i < 100; i++) {
@@ -136,6 +150,7 @@ int main(void) {
   RUN_TEST(test_update_returns_correct_state);
   RUN_TEST(test_distance_decreases_when_behind);
   RUN_TEST(test_distance_increases_when_ahead);
+  RUN_TEST(test_distance_holds_steady_when_on_target);
   RUN_TEST(test_distance_capped_at_zero);
   RUN_TEST(test_distance_capped_at_max);
   RUN_TEST(test_adjust_target_decreases);
