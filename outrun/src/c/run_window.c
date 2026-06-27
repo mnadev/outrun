@@ -5,13 +5,13 @@
 #include "run_window.h"
 #include "comm.h"
 #include "haptic_feedback.h"
-#include "hr_monitor.h"
 #include "pace_engine.h"
 #include "plan.h"
 #include "run_session.h"
 #include "run_state.h"
 #include "settings.h"
 #include "stalker_themes.h"
+#include "watch_interface.h"
 
 static Window *s_window;
 static TextLayer *s_pace_label;
@@ -20,6 +20,7 @@ static TextLayer *s_hr_layer;
 static TextLayer *s_stats_layer;
 static TextLayer *s_segment_layer;
 static TextLayer *s_status_layer;
+static Layer *s_killer_bar;
 static bool s_show_summary;
 static bool s_tick_subscribed;
 
@@ -64,6 +65,58 @@ static void format_elapsed(char *buffer, size_t size, uint32_t seconds) {
   snprintf(buffer, size, "%lu:%02lu", (unsigned long)mins, (unsigned long)secs);
 }
 
+// Traffic-light feedback by pace state; white on black-and-white watches.
+static GColor pace_state_color(PaceState st) {
+#if defined(PBL_COLOR)
+  switch (st) {
+  case PACE_AHEAD:
+    return GColorGreen;
+  case PACE_BEHIND:
+    return GColorYellow;
+  case PACE_DANGER:
+    return GColorRed;
+  default:
+    return GColorWhite;
+  }
+#else
+  (void)st;
+  return GColorWhite;
+#endif
+}
+
+// "Distance from killer": a lead bar that empties as the stalker closes in.
+static void killer_bar_update(Layer *layer, GContext *ctx) {
+  GRect b = layer_get_bounds(layer);
+  const PaceData *pace = pace_engine_get_data();
+
+  int32_t dist = pace->distance_from_killer;
+  if (dist < 0) {
+    dist = 0;
+  }
+  if (dist > 200) {
+    dist = 200;
+  }
+  int fill_w = (b.size.w * (int)dist) / 200;
+
+  graphics_context_set_stroke_color(ctx, GColorWhite);
+  graphics_draw_rect(ctx, GRect(0, 0, b.size.w, b.size.h));
+
+  graphics_context_set_fill_color(ctx, pace_state_color(pace->state));
+  if (fill_w > 2) {
+    graphics_fill_rect(ctx, GRect(1, 1, fill_w - 2, b.size.h - 2), 0, GCornerNone);
+  }
+}
+
+static TextLayer *make_run_label(Layer *parent, GRect frame, const char *font_key) {
+  TextLayer *t = text_layer_create(frame);
+  text_layer_set_font(t, fonts_get_system_font(font_key));
+  text_layer_set_text_alignment(t, GTextAlignmentCenter);
+  text_layer_set_background_color(t, GColorClear);
+  text_layer_set_text_color(t, GColorWhite);
+  layer_add_child(parent, text_layer_get_layer(t));
+  return t;
+}
+
 void run_window_show_summary(void) {
   s_show_summary = true;
   unsubscribe_tick();
@@ -83,6 +136,7 @@ void run_window_update(void) {
   if (s_show_summary && state == RUN_COMPLETE) {
     const ThemeConfig *theme = themes_get_current_config();
     char pace_str[12];
+    layer_set_hidden(s_killer_bar, true);
     int32_t target = pace_engine_get_data()->target_pace_sec_per_km;
     uint32_t escape_threshold = (uint32_t)(target + PACE_TOLERANCE_DANGER);
 
@@ -128,34 +182,18 @@ void run_window_update(void) {
     return;
   }
 
+  layer_set_hidden(s_killer_bar, false);
+  layer_mark_dirty(s_killer_bar);
+
   char current[8], target[8];
   settings_format_pace(current, sizeof(current), pace->current_pace_sec_per_km);
   settings_format_pace(target, sizeof(target), pace->target_pace_sec_per_km);
   snprintf(s_pace_buffer, sizeof(s_pace_buffer), "%s / %s", current, target);
   text_layer_set_text(s_pace_layer, s_pace_buffer);
+  text_layer_set_text_color(s_pace_layer, pace_state_color(pace->state));
 
-#if defined(PBL_COLOR)
-  // Glanceable pace feedback: green ahead, yellow behind, red danger.
-  GColor pace_color = GColorWhite;
-  switch (pace->state) {
-  case PACE_AHEAD:
-    pace_color = GColorGreen;
-    break;
-  case PACE_BEHIND:
-    pace_color = GColorYellow;
-    break;
-  case PACE_DANGER:
-    pace_color = GColorRed;
-    break;
-  default:
-    pace_color = GColorWhite;
-    break;
-  }
-  text_layer_set_text_color(s_pace_layer, pace_color);
-#endif
-
-  if (hr_monitor_is_available()) {
-    uint8_t bpm = hr_monitor_get_bpm();
+  if (watch_heart_rate_available()) {
+    uint8_t bpm = watch_heart_rate();
     uint8_t hr_lo = settings->hr_zone_lo;
     uint8_t hr_hi = settings->hr_zone_hi;
 
@@ -369,56 +407,56 @@ static void window_load(Window *window) {
 
   window_set_background_color(window, GColorBlack);
 
-  int top = PBL_IF_ROUND_ELSE(28, 10);
-  int pace_y = PBL_IF_ROUND_ELSE(48, 30);
-  int hr_y = PBL_IF_ROUND_ELSE(78, 58);
-  int stats_y = PBL_IF_ROUND_ELSE(100, 82);
-  int seg_y = PBL_IF_ROUND_ELSE(122, 104);
-  int status_y = PBL_IF_ROUND_ELSE(144, 126);
+  // Wider side inset on round watches; the stack is centered vertically so it
+  // adapts to taller screens (emery) instead of clustering near the top.
+  const int side = PBL_IF_ROUND_ELSE(30, 4);
+  const int cw = bounds.size.w - 2 * side;
 
-  s_pace_label = text_layer_create(GRect(0, top, bounds.size.w, 18));
-  text_layer_set_text(s_pace_label, "Pace");
-  text_layer_set_font(s_pace_label, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
-  text_layer_set_text_alignment(s_pace_label, GTextAlignmentCenter);
-  text_layer_set_background_color(s_pace_label, GColorBlack);
-  text_layer_set_text_color(s_pace_label, GColorWhite);
-  layer_add_child(window_layer, text_layer_get_layer(s_pace_label));
+  const int h_label = 22;
+  const int h_pace = 32;
+  const int h_bar = 12;
+  const int h_stats = 20;
+  const int h_hr = 20;
+  const int h_seg = 18;
+  const int h_status = 20;
+  const int gap = 2;
+  const int total =
+      h_label + h_pace + h_bar + h_stats + h_hr + h_seg + h_status + gap * 6;
 
-  s_pace_layer = text_layer_create(GRect(0, pace_y, bounds.size.w, 28));
+  int y = (bounds.size.h - total) / 2;
+  if (y < 0) {
+    y = 0;
+  }
+
+  s_pace_label = make_run_label(window_layer, GRect(side, y, cw, h_label),
+                                FONT_KEY_GOTHIC_18_BOLD);
+  text_layer_set_text(s_pace_label, themes_get_current_config()->stalker_name);
+  y += h_label + gap;
+
+  s_pace_layer = make_run_label(window_layer, GRect(side, y, cw, h_pace),
+                                FONT_KEY_GOTHIC_24_BOLD);
   text_layer_set_text(s_pace_layer, "0:00 / 5:00");
-  text_layer_set_font(s_pace_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
-  text_layer_set_text_alignment(s_pace_layer, GTextAlignmentCenter);
-  text_layer_set_background_color(s_pace_layer, GColorBlack);
-  text_layer_set_text_color(s_pace_layer, GColorWhite);
-  layer_add_child(window_layer, text_layer_get_layer(s_pace_layer));
+  y += h_pace + gap;
 
-  s_hr_layer = text_layer_create(GRect(0, hr_y, bounds.size.w, 20));
-  text_layer_set_font(s_hr_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18));
-  text_layer_set_text_alignment(s_hr_layer, GTextAlignmentCenter);
-  text_layer_set_background_color(s_hr_layer, GColorBlack);
-  text_layer_set_text_color(s_hr_layer, GColorWhite);
-  layer_add_child(window_layer, text_layer_get_layer(s_hr_layer));
+  s_killer_bar = layer_create(GRect(side, y, cw, h_bar));
+  layer_set_update_proc(s_killer_bar, killer_bar_update);
+  layer_add_child(window_layer, s_killer_bar);
+  y += h_bar + gap;
 
-  s_stats_layer = text_layer_create(GRect(0, stats_y, bounds.size.w, 20));
-  text_layer_set_font(s_stats_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
-  text_layer_set_text_alignment(s_stats_layer, GTextAlignmentCenter);
-  text_layer_set_background_color(s_stats_layer, GColorBlack);
-  text_layer_set_text_color(s_stats_layer, GColorWhite);
-  layer_add_child(window_layer, text_layer_get_layer(s_stats_layer));
+  s_stats_layer = make_run_label(window_layer, GRect(side, y, cw, h_stats),
+                                 FONT_KEY_GOTHIC_14);
+  y += h_stats + gap;
 
-  s_segment_layer = text_layer_create(GRect(0, seg_y, bounds.size.w, 20));
-  text_layer_set_font(s_segment_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
-  text_layer_set_text_alignment(s_segment_layer, GTextAlignmentCenter);
-  text_layer_set_background_color(s_segment_layer, GColorBlack);
-  text_layer_set_text_color(s_segment_layer, GColorWhite);
-  layer_add_child(window_layer, text_layer_get_layer(s_segment_layer));
+  s_hr_layer = make_run_label(window_layer, GRect(side, y, cw, h_hr),
+                              FONT_KEY_GOTHIC_14);
+  y += h_hr + gap;
 
-  s_status_layer = text_layer_create(GRect(0, status_y, bounds.size.w, 20));
-  text_layer_set_font(s_status_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
-  text_layer_set_text_alignment(s_status_layer, GTextAlignmentCenter);
-  text_layer_set_background_color(s_status_layer, GColorBlack);
-  text_layer_set_text_color(s_status_layer, GColorWhite);
-  layer_add_child(window_layer, text_layer_get_layer(s_status_layer));
+  s_segment_layer = make_run_label(window_layer, GRect(side, y, cw, h_seg),
+                                   FONT_KEY_GOTHIC_14_BOLD);
+  y += h_seg + gap;
+
+  s_status_layer = make_run_label(window_layer, GRect(side, y, cw, h_status),
+                                  FONT_KEY_GOTHIC_14);
 
   run_window_update();
 
@@ -437,12 +475,14 @@ static void window_unload(Window *window) {
   text_layer_destroy(s_stats_layer);
   text_layer_destroy(s_segment_layer);
   text_layer_destroy(s_status_layer);
+  layer_destroy(s_killer_bar);
   s_pace_label = NULL;
   s_pace_layer = NULL;
   s_hr_layer = NULL;
   s_stats_layer = NULL;
   s_segment_layer = NULL;
   s_status_layer = NULL;
+  s_killer_bar = NULL;
   window_destroy(s_window);
   s_window = NULL;
 }
