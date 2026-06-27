@@ -82,6 +82,33 @@ void test_garbage_blob_is_rejected(void) {
   TEST_ASSERT_EQUAL_INT32(DEFAULT_TARGET_PACE_SEC, s->target_pace_sec_per_km);
 }
 
+// --- HR-zone clamping ------------------------------------------------------
+
+void test_hr_zone_preserves_width_at_high_clamp(void) {
+  settings_init();
+  // Step the band past the ceiling; width (30) must be kept, not shrunk.
+  settings_set_hr_zone(210, 240);
+  const AppSettings *s = settings_get();
+  TEST_ASSERT_EQUAL_UINT8(HR_ZONE_MAX, s->hr_zone_hi);
+  TEST_ASSERT_EQUAL_UINT8(HR_ZONE_MAX - 30, s->hr_zone_lo);
+}
+
+void test_hr_zone_preserves_width_at_low_clamp(void) {
+  settings_init();
+  settings_set_hr_zone(50, 80); // lo below the floor, width 30
+  const AppSettings *s = settings_get();
+  TEST_ASSERT_EQUAL_UINT8(HR_ZONE_MIN, s->hr_zone_lo);
+  TEST_ASSERT_EQUAL_UINT8(HR_ZONE_MIN + 30, s->hr_zone_hi);
+}
+
+void test_hr_zone_rejects_inverted_band(void) {
+  settings_init();
+  settings_set_hr_zone(160, 130); // hi <= lo: ignored
+  const AppSettings *s = settings_get();
+  TEST_ASSERT_EQUAL_UINT8(DEFAULT_HR_ZONE_LO, s->hr_zone_lo);
+  TEST_ASSERT_EQUAL_UINT8(DEFAULT_HR_ZONE_HI, s->hr_zone_hi);
+}
+
 // --- Unit-aware pace stepping ---------------------------------------------
 
 void test_pace_step_km_is_full_seconds(void) {
@@ -121,6 +148,9 @@ int main(void) {
   RUN_TEST(test_accent_rejects_out_of_range);
   RUN_TEST(test_legacy_unversioned_blob_is_rejected);
   RUN_TEST(test_garbage_blob_is_rejected);
+  RUN_TEST(test_hr_zone_preserves_width_at_high_clamp);
+  RUN_TEST(test_hr_zone_preserves_width_at_low_clamp);
+  RUN_TEST(test_hr_zone_rejects_inverted_band);
   RUN_TEST(test_pace_step_km_is_full_seconds);
   RUN_TEST(test_pace_step_mi_is_smaller_and_symmetric);
   RUN_TEST(test_pace_step_mi_moves_display_by_about_one_step);

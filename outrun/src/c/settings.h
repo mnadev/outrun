@@ -43,6 +43,10 @@ typedef struct {
 #define DEFAULT_TARGET_PACE_SEC 300
 #define DEFAULT_HR_ZONE_LO 120
 #define DEFAULT_HR_ZONE_HI 150
+// Valid heart-rate-zone bounds (bpm). The band is clamped into this range as a
+// unit so stepping it up/down preserves its width at the edges.
+#define HR_ZONE_MIN 60
+#define HR_ZONE_MAX 220
 #define METERS_PER_MILE 1609
 // One target-pace button step, expressed in the user's display unit (seconds
 // per km or per mile). Converted to sec/km via settings_pace_step_to_sec_per_km.

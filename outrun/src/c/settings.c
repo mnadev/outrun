@@ -79,15 +79,25 @@ void settings_set_target_pace(int32_t pace_sec_per_km) {
 }
 
 void settings_set_hr_zone(uint8_t lo, uint8_t hi) {
-  if (lo < 60) {
-    lo = 60;
+  if (hi <= lo) {
+    return; // ignore an inverted/empty band
   }
-  if (hi > 220) {
-    hi = 220;
+
+  // Clamp the band into [HR_ZONE_MIN, HR_ZONE_MAX] as a unit, preserving its
+  // width, so stepping it past an edge saturates instead of shrinking.
+  uint8_t width = (uint8_t)(hi - lo);
+  if (width > (HR_ZONE_MAX - HR_ZONE_MIN)) {
+    width = (uint8_t)(HR_ZONE_MAX - HR_ZONE_MIN);
   }
-  if (lo >= hi) {
-    return;
+  if (hi > HR_ZONE_MAX) {
+    hi = HR_ZONE_MAX;
+    lo = (uint8_t)(hi - width);
   }
+  if (lo < HR_ZONE_MIN) {
+    lo = HR_ZONE_MIN;
+    hi = (uint8_t)(lo + width);
+  }
+
   s_settings.hr_zone_lo = lo;
   s_settings.hr_zone_hi = hi;
   settings_save();
