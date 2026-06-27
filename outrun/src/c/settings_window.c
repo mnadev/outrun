@@ -4,12 +4,14 @@
 
 #include "settings_window.h"
 #include "settings.h"
+#include "stalker_themes.h"
 
 static Window *s_window;
 static MenuLayer *s_menu;
 
 typedef enum {
-  SETTING_UNITS = 0,
+  SETTING_THEME = 0,
+  SETTING_UNITS,
   SETTING_TARGET_PACE,
   SETTING_HR_ZONE,
   SETTING_PACE_ALERTS,
@@ -31,6 +33,10 @@ static void menu_draw_row(GContext *ctx, const Layer *cell_layer, MenuIndex *cel
   const char *title = "";
 
   switch (cell_index->row) {
+  case SETTING_THEME:
+    title = "Stalker";
+    snprintf(subtitle, sizeof(subtitle), "%s", themes_get_current_config()->name);
+    break;
   case SETTING_UNITS:
     title = "Units";
     snprintf(subtitle, sizeof(subtitle), "%s",
@@ -63,10 +69,25 @@ static void menu_draw_row(GContext *ctx, const Layer *cell_layer, MenuIndex *cel
   menu_cell_basic_draw(ctx, cell_layer, title, subtitle, NULL);
 }
 
+static void apply_theme_colors(void) {
+#if defined(PBL_COLOR)
+  if (s_menu) {
+    GColor accent = themes_get_primary_color(themes_get_current());
+    menu_layer_set_highlight_colors(s_menu, accent, GColorBlack);
+  }
+#endif
+}
+
 static void menu_select_click(MenuLayer *menu, MenuIndex *cell_index, void *data) {
   const AppSettings *settings = settings_get();
 
   switch (cell_index->row) {
+  case SETTING_THEME: {
+    StalkerTheme next = (StalkerTheme)((themes_get_current() + 1) % THEME_COUNT);
+    themes_set_current(next);
+    apply_theme_colors();
+    break;
+  }
   case SETTING_UNITS:
     settings_set_units(settings->units == UNITS_KM ? UNITS_MI : UNITS_KM);
     break;
@@ -123,6 +144,7 @@ static void window_load(Window *window) {
                                .select_long_click = menu_select_long_click,
                            });
   menu_layer_set_click_config_onto_window(s_menu, window);
+  apply_theme_colors();
   layer_add_child(root, menu_layer_get_layer(s_menu));
 }
 

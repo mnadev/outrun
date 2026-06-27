@@ -6,6 +6,7 @@
 #include "plans_window.h"
 #include "run_window.h"
 #include "settings_window.h"
+#include "stalker_themes.h"
 
 static Window *s_window;
 static MenuLayer *s_menu;
@@ -72,6 +73,10 @@ static void window_load(Window *window) {
                                .select_click = menu_select_click,
                            });
   menu_layer_set_click_config_onto_window(s_menu, window);
+#if defined(PBL_COLOR)
+  menu_layer_set_highlight_colors(
+      s_menu, themes_get_primary_color(themes_get_current()), GColorBlack);
+#endif
   layer_add_child(root, menu_layer_get_layer(s_menu));
 }
 

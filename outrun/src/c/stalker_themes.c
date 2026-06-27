@@ -6,6 +6,9 @@
 #include "features.h"
 #include "watch_interface.h"
 
+// Persistent storage key (settings uses key 1).
+#define THEME_PERSIST_KEY 2
+
 // Current theme
 static StalkerTheme s_current_theme = THEME_CLASSIC;
 
@@ -101,28 +104,24 @@ static const uint32_t ALIEN_SCARE[] = {300, 100, 300, 100, 300};
 static const uint32_t WEREWOLF_SCARE[] = {800};
 
 void themes_init(void) {
-  // Load saved theme from persistent storage (if premium)
-  if (feature_is_enabled(FEATURE_CUSTOM_STALKERS)) {
-    // Would load from persist_read_int, defaulting to CLASSIC
-    s_current_theme = THEME_CLASSIC;
-  } else {
-    s_current_theme = THEME_CLASSIC;
+  s_current_theme = THEME_CLASSIC;
+  if (persist_exists(THEME_PERSIST_KEY)) {
+    int32_t saved = persist_read_int(THEME_PERSIST_KEY);
+    if (saved >= 0 && saved < THEME_COUNT) {
+      s_current_theme = (StalkerTheme)saved;
+    }
   }
 }
 
 StalkerTheme themes_get_current(void) { return s_current_theme; }
 
 bool themes_set_current(StalkerTheme theme) {
-  if (!feature_is_enabled(FEATURE_CUSTOM_STALKERS)) {
-    return false; // Premium required
-  }
-
   if (theme >= THEME_COUNT) {
     return false;
   }
 
   s_current_theme = theme;
-  // Would save to persist_write_int
+  persist_write_int(THEME_PERSIST_KEY, (int32_t)theme);
   return true;
 }
 
