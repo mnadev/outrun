@@ -48,11 +48,14 @@ void haptic_fire_alert(AlertType alert) {
   feedback_fire(haptic_event_for_alert(alert));
 }
 
-// The heartbeat speaks in the active stalker's voice: its "pulse" pattern when
-// merely behind, its "danger" pattern when about to be caught.
+// The heartbeat loop beat: short and guaranteed to finish well before the
+// next enqueue, so vibes never queues patterns back-to-back into continuous
+// vibration. The theme "danger" pattern (up to ~1.1s) is too long to repeat
+// at the rapid cadence, so it fires once on entry (haptic_start_heartbeat)
+// and the loop uses the portable rapid thump instead.
 static void play_heartbeat_pulse(void) {
   if (s_is_rapid) {
-    themes_haptic_danger();
+    feedback_fire(HAPTIC_HEARTBEAT_RAPID);
   } else {
     themes_haptic_pulse();
   }
@@ -71,7 +74,14 @@ void haptic_start_heartbeat(bool behind) {
   haptic_stop_heartbeat();
   s_is_rapid = behind;
 
-  play_heartbeat_pulse();
+  // One theme-voiced cue when the heartbeat level changes: the stalker's
+  // danger pattern as you enter the danger zone, its pulse when you're merely
+  // behind. The loop then takes over with short, non-overlapping beats.
+  if (behind) {
+    themes_haptic_danger();
+  } else {
+    themes_haptic_pulse();
+  }
 
   uint32_t interval =
       behind ? HAPTIC_HEARTBEAT_RAPID_MS : HAPTIC_HEARTBEAT_SOFT_MS;

@@ -49,6 +49,20 @@ void test_alert_to_event_mapping(void) {
   TEST_ASSERT_EQUAL(HAPTIC_NONE, haptic_event_for_alert(ALERT_NONE));
 }
 
+// The heartbeat loop re-enqueues the rapid pattern every
+// HAPTIC_HEARTBEAT_RAPID_MS. If the pattern were longer than the interval,
+// vibes would queue patterns back-to-back into continuous vibration (battery
+// drain / unusable). Guard that regression.
+void test_rapid_heartbeat_pattern_fits_within_interval(void) {
+  const HapticPattern *rapid = haptic_pattern_for(HAPTIC_HEARTBEAT_RAPID);
+  TEST_ASSERT_NOT_NULL(rapid);
+  uint32_t duration_ms = 0;
+  for (uint32_t i = 0; i < rapid->count; i++) {
+    duration_ms += rapid->durations[i];
+  }
+  TEST_ASSERT_TRUE(duration_ms < HAPTIC_HEARTBEAT_RAPID_MS);
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_pace_patterns_have_expected_shape);
@@ -56,5 +70,6 @@ int main(void) {
   RUN_TEST(test_out_of_range_returns_null);
   RUN_TEST(test_every_real_event_has_a_pattern);
   RUN_TEST(test_alert_to_event_mapping);
+  RUN_TEST(test_rapid_heartbeat_pattern_fits_within_interval);
   return UNITY_END();
 }
