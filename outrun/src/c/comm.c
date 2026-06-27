@@ -36,6 +36,62 @@ static char s_rival_name[32];
 static CommPlanReceivedCallback s_plan_callback;
 static uint32_t s_last_distance;
 
+// Outbound reliability: AppMessage only allows one in-flight send, and
+// app_message_outbox_begin() returns busy if one is pending. Rather than
+// silently dropping commands (which would desync the phone's GPS state), we
+// queue them and drain on the sent/failed callbacks.
+//
+// Commands (start/stop/pause/resume) are a small FIFO -- order and delivery
+// matter. Target pace is a single coalesced slot -- only the latest value is
+// worth sending. Failed sends are retried a few times, then dropped so we
+// don't transmit forever while the phone is unreachable.
+#define CMD_QUEUE_MAX 6
+#define OUTBOX_MAX_ATTEMPTS 3
+
+typedef enum { OUTBOX_IDLE, OUTBOX_CMD, OUTBOX_PACE } OutboxInFlight;
+
+static int s_cmd_queue[CMD_QUEUE_MAX];
+static uint8_t s_cmd_head;
+static uint8_t s_cmd_count;
+static bool s_pace_pending;
+static int32_t s_pace_value;
+static OutboxInFlight s_in_flight;
+static uint8_t s_attempts;
+
+static void cmd_pop(void) {
+  if (s_cmd_count > 0) {
+    s_cmd_head = (uint8_t)((s_cmd_head + 1) % CMD_QUEUE_MAX);
+    s_cmd_count--;
+  }
+}
+
+static void outbox_drain(void) {
+  if (s_in_flight != OUTBOX_IDLE) {
+    return; // a send is in flight; the sent/failed callback will re-drain
+  }
+  if (s_cmd_count == 0 && !s_pace_pending) {
+    return;
+  }
+
+  DictionaryIterator *iter;
+  if (app_message_outbox_begin(&iter) != APP_MSG_OK) {
+    return; // outbox busy/unavailable; retried on next callback or enqueue
+  }
+
+  if (s_cmd_count > 0) {
+    dict_write_int32(iter, KEY_COMMAND, s_cmd_queue[s_cmd_head]);
+    if (app_message_outbox_send() == APP_MSG_OK) {
+      s_in_flight = OUTBOX_CMD; // popped on confirmed send
+    }
+  } else {
+    dict_write_int32(iter, KEY_TARGET_PACE, s_pace_value);
+    if (app_message_outbox_send() == APP_MSG_OK) {
+      s_in_flight = OUTBOX_PACE;
+      s_pace_pending = false; // consumed; a newer value will re-arm this
+    }
+  }
+}
+
 static void handle_plan_message(DictionaryIterator *iterator) {
   if (run_session_is_active()) {
     return;
@@ -140,16 +196,45 @@ static void inbox_dropped_handler(AppMessageResult reason, void *context) {
   APP_LOG(APP_LOG_LEVEL_ERROR, "AppMessage dropped: %d", reason);
 }
 
-static void outbox_sent_handler(DictionaryIterator *iterator, void *context) {}
+static void outbox_sent_handler(DictionaryIterator *iterator, void *context) {
+  if (s_in_flight == OUTBOX_CMD) {
+    cmd_pop();
+  }
+  // Pace was already consumed at send time; nothing to do here.
+  s_in_flight = OUTBOX_IDLE;
+  s_attempts = 0;
+  outbox_drain();
+}
 
 static void outbox_failed_handler(DictionaryIterator *iterator,
                                   AppMessageResult reason, void *context) {
   APP_LOG(APP_LOG_LEVEL_ERROR, "AppMessage send failed: %d", reason);
+  OutboxInFlight what = s_in_flight;
+  s_in_flight = OUTBOX_IDLE;
+
+  if (++s_attempts >= OUTBOX_MAX_ATTEMPTS) {
+    // Give up on this item so we stop transmitting while disconnected.
+    if (what == OUTBOX_CMD) {
+      cmd_pop();
+    }
+    // Pace: leaving it consumed (pending false) drops it unless a newer value
+    // re-armed s_pace_pending during the failed attempt.
+    s_attempts = 0;
+  } else if (what == OUTBOX_PACE) {
+    s_pace_pending = true; // re-arm the latest pace for another try
+  }
+  outbox_drain();
 }
 
 void comm_init(void) {
   s_plan_callback = NULL;
   s_last_distance = 0;
+  s_cmd_head = 0;
+  s_cmd_count = 0;
+  s_pace_pending = false;
+  s_pace_value = 0;
+  s_in_flight = OUTBOX_IDLE;
+  s_attempts = 0;
 
   app_message_register_inbox_received(inbox_received_handler);
   app_message_register_inbox_dropped(inbox_dropped_handler);
@@ -164,26 +249,28 @@ void comm_init(void) {
 void comm_deinit(void) { app_message_deregister_callbacks(); }
 
 void comm_send_command(int command) {
-  DictionaryIterator *iter;
-  AppMessageResult result = app_message_outbox_begin(&iter);
-  if (result != APP_MSG_OK) {
-    return;
-  }
-  dict_write_int32(iter, KEY_COMMAND, command);
   if (command == CMD_START) {
     s_last_distance = 0;
   }
-  app_message_outbox_send();
+
+  if (s_cmd_count == CMD_QUEUE_MAX) {
+    if (s_in_flight == OUTBOX_CMD) {
+      return; // head is in flight; can't safely drop it, so drop the new one
+    }
+    cmd_pop(); // make room by dropping the oldest queued command
+  }
+
+  uint8_t tail = (uint8_t)((s_cmd_head + s_cmd_count) % CMD_QUEUE_MAX);
+  s_cmd_queue[tail] = command;
+  s_cmd_count++;
+  outbox_drain();
 }
 
 void comm_send_target_pace(int32_t pace) {
-  DictionaryIterator *iter;
-  AppMessageResult result = app_message_outbox_begin(&iter);
-  if (result != APP_MSG_OK) {
-    return;
-  }
-  dict_write_int32(iter, KEY_TARGET_PACE, pace);
-  app_message_outbox_send();
+  // Coalesce: only the latest target pace matters.
+  s_pace_value = pace;
+  s_pace_pending = true;
+  outbox_drain();
 }
 
 void comm_set_plan_received_callback(CommPlanReceivedCallback callback) {
