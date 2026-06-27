@@ -30,6 +30,11 @@ function toRad(deg) {
   return deg * (Math.PI / 180);
 }
 
+// GPS filtering thresholds.
+var MAX_ACCURACY_M = 30;   // drop fixes worse than this
+var MAX_SPEED_MPS = 12.5;  // ~45 km/h; faster between two fixes is a GPS glitch
+var MIN_MOVE_M = 2;        // ignore sub-2m movement as stationary jitter
+
 /**
  * PaceCalculator - Tracks GPS positions and calculates pace
  */
@@ -56,12 +61,12 @@ PaceCalculator.prototype.reset = function () {
  */
 PaceCalculator.prototype.addLocation = function (location) {
   // Skip inaccurate readings
-  if (location.accuracy > 30) {
+  if (location.accuracy > MAX_ACCURACY_M) {
     console.log('Skipping inaccurate GPS reading: ' + location.accuracy + 'm');
     return;
   }
 
-  // Set start time on first location
+  // Set start time on first accepted location
   if (this.startTime === null) {
     this.startTime = location.timestamp;
   }
@@ -70,11 +75,28 @@ PaceCalculator.prototype.addLocation = function (location) {
   if (this.locations.length > 0) {
     var prev = this.locations[this.locations.length - 1];
     var dist = haversineDistance(prev.lat, prev.lng, location.lat, location.lng);
+    var dt = (location.timestamp - prev.timestamp) / 1000; // seconds
 
-    // Skip if suspiciously large jump (likely GPS glitch)
-    if (dist > 100) {
-      console.log('Skipping GPS jump: ' + dist.toFixed(0) + 'm');
+    // Reject out-of-order / duplicate timestamps: we can't derive a speed, and
+    // it would otherwise produce a divide-by-zero or a bogus pace spike.
+    if (dt <= 0) {
+      console.log('Skipping out-of-order GPS sample');
       return;
+    }
+
+    // Reject implausibly fast jumps (GPS glitch / teleport). Speed-based rather
+    // than a flat distance cap, so genuine movement across a sparse GPS gap
+    // (e.g. 200m over 60s) is kept instead of silently dropped.
+    if (dist > MAX_SPEED_MPS * dt) {
+      console.log('Skipping GPS jump: ' + dist.toFixed(0) + 'm in ' + dt.toFixed(0) + 's');
+      return;
+    }
+
+    // Treat sub-threshold movement as stationary jitter so standing still
+    // doesn't accrue phantom distance. The point is still recorded (window time
+    // keeps advancing) so pace reflects that you've slowed/stopped.
+    if (dist < MIN_MOVE_M) {
+      dist = 0;
     }
 
     this.totalDistance += dist;

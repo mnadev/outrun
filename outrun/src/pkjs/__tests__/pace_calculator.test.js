@@ -75,6 +75,49 @@ describe('PaceCalculator', () => {
     });
   });
 
+  describe('GPS outlier and jitter handling', () => {
+    test('rejects an implausibly fast jump (GPS teleport)', () => {
+      const now = Date.now();
+      calculator.addLocation({ lat: 40.7580, lng: -73.9855, accuracy: 5, timestamp: now });
+      // ~1.5km away only 2s later (~750 m/s) -- impossible, must be dropped.
+      calculator.addLocation({ lat: 40.7715, lng: -73.9855, accuracy: 5, timestamp: now + 2000 });
+      expect(calculator.getTotalDistance()).toBe(0);
+    });
+
+    test('keeps a plausible move across a sparse GPS gap', () => {
+      const now = Date.now();
+      calculator.addLocation({ lat: 40.7580, lng: -73.9855, accuracy: 5, timestamp: now });
+      // ~200m over 60s (~3.3 m/s) is normal running; a flat 100m cap would have
+      // wrongly discarded it.
+      calculator.addLocation({ lat: 40.75980, lng: -73.9855, accuracy: 5, timestamp: now + 60000 });
+      const d = calculator.getTotalDistance();
+      expect(d).toBeGreaterThan(150);
+      expect(d).toBeLessThan(250);
+    });
+
+    test('ignores sub-threshold jitter while stationary', () => {
+      const now = Date.now();
+      calculator.addLocation({ lat: 40.7580, lng: -73.9855, accuracy: 5, timestamp: now });
+      // ~1m jitter back and forth around one spot -- should not accumulate.
+      for (let i = 1; i <= 5; i++) {
+        calculator.addLocation({
+          lat: 40.7580 + (i % 2 === 0 ? 0.000005 : -0.000005), // ~0.5m offsets
+          lng: -73.9855,
+          accuracy: 5,
+          timestamp: now + i * 5000
+        });
+      }
+      expect(calculator.getTotalDistance()).toBe(0);
+    });
+
+    test('rejects out-of-order timestamps', () => {
+      const now = Date.now();
+      calculator.addLocation({ lat: 40.7580, lng: -73.9855, accuracy: 5, timestamp: now });
+      calculator.addLocation({ lat: 40.75845, lng: -73.9855, accuracy: 5, timestamp: now - 5000 });
+      expect(calculator.getTotalDistance()).toBe(0);
+    });
+  });
+
   describe('getCurrentPace', () => {
     test('returns 0 with insufficient data', () => {
       expect(calculator.getCurrentPace()).toBe(0);
@@ -139,6 +182,7 @@ describe('PaceCalculator', () => {
       // addLocation stores lat/lng (NOT coords.latitude/longitude), so the
       // track must read those same fields. Regression: it used to map
       // loc.latitude/loc.longitude and produced undefined coordinates.
+      // Samples are ~56m / 20s apart (~2.8 m/s) so they pass the speed filter.
       calculator.addLocation({
         lat: 40.7128,
         lng: -74.0060,
@@ -149,13 +193,13 @@ describe('PaceCalculator', () => {
         lat: 40.7133,
         lng: -74.0060,
         accuracy: 5,
-        timestamp: base + 1000
+        timestamp: base + 20000
       });
       calculator.addLocation({
         lat: 40.7138,
         lng: -74.0060,
         accuracy: 5,
-        timestamp: base + 2000
+        timestamp: base + 40000
       });
 
       const track = calculator.getGpsTrack();
@@ -163,7 +207,7 @@ describe('PaceCalculator', () => {
       expect(track[0].lat).toBeCloseTo(40.7128);
       expect(track[0].lng).toBeCloseTo(-74.0060);
       expect(track[0].timestamp).toBe(0);
-      expect(track[1].timestamp).toBe(1000);
+      expect(track[1].timestamp).toBe(20000);
       expect(track[2].lat).toBeCloseTo(40.7138);
       // Guard the original bug: coordinates must never be undefined.
       track.forEach((pt) => {
