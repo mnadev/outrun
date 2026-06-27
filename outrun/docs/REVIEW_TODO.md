@@ -22,7 +22,12 @@ Remaining findings from the adversarial review, prioritized.
   100 m jump cap (which dropped legitimate movement across a sparse GPS gap) with
   a speed-based reject (>12.5 m/s between fixes); added a 2 m stationary-jitter
   floor; and reject out-of-order/duplicate timestamps (no more div-by-zero / pace
-  spikes). Core Haversine + rolling-window math unchanged. New jest coverage.
+  spikes). New jest coverage.
+- **GPS Kalman smoothing** (`gps_kalman.js`): a constant-velocity Kalman filter
+  now smooths fixes; distance accumulates between smoothed positions and pace
+  comes from the velocity estimate. Smoother pace = fewer false band buzzes, and
+  noisy-track distance error drops from naive's ~+43% to ~-11% with no bias on a
+  clean track. Tuned (accelNoise 0.4) and tested (filter + integration suites).
 - **P2: phone-HR override was sticky** (`hr_monitor.c`): a once-received phone HR
   shadowed the on-watch sensor forever. Cleared on `hr_monitor_stop()`; renamed
   the misleading `debug` naming to phone-HR terms.
@@ -57,9 +62,23 @@ Remaining findings from the adversarial review, prioritized.
    working comm protocol on both sides and the round-trip can't be verified in
    the emulator (no phone), so it's higher-risk than its payoff right now. Do it
    as a dedicated change with on-device testing.
-2. **P3: GPS jitter floor vs. very slow movement.** The 2 m stationary floor can
-   under-count genuine sub-0.4 m/s movement. Acceptable for a *running* pacer;
-   revisit if walking support is wanted.
+2. **P3: GPS jitter floor vs. very slow movement.** The 2 m smoothed-step floor
+   can under-count genuine sub-0.4 m/s movement. Acceptable for a *running*
+   pacer; revisit if walking support is wanted.
+
+## Candidate further improvements (not yet done)
+
+- **"Acquiring GPS" state.** Before the first fix the watch shows the target as
+  current pace ("5:00 / 5:00"), which looks like a live reading. A phone->watch
+  "GPS not ready" flag + a watch indicator would make the warm-up honest. Needs a
+  comm-protocol + watch-UI change.
+- **Auto-pause when stopped.** With the Kalman speed estimate the phone could
+  auto-pause at ~0 m/s and resume on movement, so red-light stops don't read as
+  "off pace". Needs watch-side coordination.
+- **Full-run GPX.** `getGpsTrack()` only returns the last `windowSize` smoothed
+  points, so server-synced GPX is truncated. Out of scope (cloud) but worth
+  fixing if/when cloud save matters; the offline ghost already uses the full
+  track kept in `index.js`.
 3. **P3: Offline plan defaults omit "Intervals".** Its distance-based segments
    can't progress without GPS distance, so it would stall offline; it still works
    when paired (the phone supplies it). Leave omitted from offline defaults.
