@@ -1,98 +1,56 @@
-# 🏃 Outrun - The Social Horror Pacer
+# Outrun — Horror Pacer for Pebble
 
-> *"Run like your life depends on it... because in Outrun, it does."*
+A Pebble running pacer: your phone tracks GPS pace and distance, your watch
+shows targets and buzzes when you drift off pace or heart rate.
 
-A gamified survival fitness app that transforms your runs into slasher-movie escapes. Keep pace with your target or the **KILLER** catches you.
+## What it does
 
-## Features
+- **Phone → watch pace & distance** — PebbleKit JS uses GPS to compute current
+  pace and total distance, sent to the watch over Bluetooth.
+- **On-watch HR** — Pebble Health (Pebble 2 / Time 2) samples heart rate during
+  a run; zone shown on screen.
+- **Vibration alerts** — Debounced buzzes when pace or HR leaves your target
+  band (configurable in Settings).
+- **Horror skin** — "Distance from killer" bar, theme voice, chase heartbeat
+  when you fall behind. Optional ghost rival races your last run (offline).
+- **Structured plans** — Preset workouts (easy, tempo, zone 2) with segment
+  targets; works offline with built-in defaults.
 
-### 🔪 Core Gameplay
-- **Distance from Killer** - Fall behind pace and IT gets closer
-- **Horror Haptics** - Feel the heartbeat intensify as danger approaches
-- **Segment Survival** - Beat your rivals on Strava segments or "die trying"
+Works **standalone on the watch** without a server. Strava and cloud save are
+optional extras that degrade gracefully when unavailable.
 
-### 📱 Phone Integration
-- GPS-based pace tracking via PebbleKit JS
-- Strava OAuth for segment hunting
-- Real-time pace coaching to your wrist
-
-### 👻 Premium Features
-- **5 Horror Themes** - Classic Slasher, Paranormal, Zombie, Alien, Werewolf
-- **Ghost Racing** - Race against your past runs
-- **Fear Factor Analytics** - Track your survival rate and composure
-
-### 🏆 Social
-- Leagues and Teams with weekly challenges
-- "Composure" scoring system
-- Horror-themed ranks (Final Girl → Victim)
-
-## Quick Start
+## Quick start
 
 ```bash
-# Build for all platforms
 pebble build
-
-# Install to emulator
 pebble install --emulator basalt
 
-# Run C tests
-cd test && make test
-
-# Run JS tests  
-cd src/pkjs && npm test
+cd test && make          # C unit tests
+cd src/pkjs && npm test  # JS unit tests
 ```
+
+Pair with the Pebble app on your phone. Start a **Quick Run** on the watch;
+the phone companion starts GPS when it receives the start command.
 
 ## Controls
 
 | Button | Action |
 |--------|--------|
-| **SELECT** | Start/Pause run |
-| **SELECT (hold)** | Stop run |
-| **UP** | Faster target pace (-15s/km) |
-| **DOWN** | Slower target pace (+15s/km) |
+| **SELECT** | Start / pause / resume |
+| **SELECT (hold)** or **BACK** | Stop run (summary) |
+| **UP / DOWN** | Faster / slower target pace (quick run only) |
 
-## Architecture
-
-```
-src/
-├── c/               # Pebble C code
-│   ├── pace_engine  # Pace calculation + game logic
-│   ├── haptic       # Horror vibration patterns
-│   ├── run_state    # Run lifecycle state machine
-│   ├── run_window   # Main UI
-│   ├── comm         # Phone communication
-│   ├── features     # Feature gating
-│   └── stalker_themes # Premium horror themes
-│
-└── pkjs/            # PebbleKit JavaScript
-    ├── index.js         # Main entry + GPS
-    ├── pace_calculator  # Haversine + rolling window
-    ├── strava_auth      # OAuth 2.0
-    ├── strava_segments  # Segment detection
-    ├── ghost_racing     # Race past runs
-    ├── analytics        # Fear Factor stats
-    └── mock_backend     # Simulated leagues
-```
+Settings: units (km/mi), target pace, HR zone, alert toggles, stalker theme.
 
 ## Platforms
 
-Built and tested for all Pebble platforms:
-- ✅ Aplite (original Pebble)
-- ✅ Basalt (Pebble Time)
-- ✅ Chalk (Pebble Time Round)
-- ✅ Diorite (Pebble 2)
-- ✅ Emery (Pebble Time 2)
-- ✅ Flint (future)
+aplite, basalt, chalk, diorite, emery, flint — all build with `-Werror`.
 
-## Horror Themes
+## Architecture
 
-| Theme | Stalker | Escape | Caught |
-|-------|---------|--------|--------|
-| 🔪 Classic | THE KILLER | ESCAPED! | CAUGHT! |
-| 👻 Paranormal | THE SPIRIT | BANISHED! | POSSESSED! |
-| 🧟 Zombie | THE HORDE | SURVIVED! | INFECTED! |
-| 👽 Alien | THE XENOMORPH | ESCAPED POD! | CAPTURED! |
-| 🐺 Werewolf | THE BEAST | DAWN BREAKS! | MAULED! |
+Portable C core (`pace_engine`, `alert_engine`, `run_state`, `plan`) behind
+`WatchInterface`; Pebble adapter in `pebble_watch.c`. Phone logic in
+`src/pkjs/` (`pace_calculator.js`, `index.js`). See `docs/PORTING.md`.
 
 ## License
 

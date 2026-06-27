@@ -7,6 +7,7 @@
 #include "hr_monitor.h"
 #include "plan.h"
 #include "run_session.h"
+#include "run_state.h"
 #include "run_window.h"
 
 #include <pebble.h>
@@ -74,7 +75,7 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
   }
 
   Tuple *pace_tuple = dict_find(iterator, KEY_CURRENT_PACE);
-  if (pace_tuple) {
+  if (pace_tuple && run_state_get() == RUN_ACTIVE) {
     pace_engine_update(pace_tuple->value->int32);
     run_window_update();
   }
@@ -85,7 +86,7 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
   }
 
   Tuple *distance_tuple = dict_find(iterator, KEY_CURRENT_DISTANCE);
-  if (distance_tuple) {
+  if (distance_tuple && run_state_get() == RUN_ACTIVE) {
     uint32_t distance = (uint32_t)distance_tuple->value->int32;
     if (distance >= s_last_distance) {
       run_state_set_distance(distance);
@@ -98,7 +99,7 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
   }
 
   Tuple *hr_tuple = dict_find(iterator, KEY_HEART_RATE);
-  if (hr_tuple) {
+  if (hr_tuple && run_session_is_active()) {
     hr_monitor_set_debug_bpm((uint8_t)hr_tuple->value->int32);
     run_window_update();
   }

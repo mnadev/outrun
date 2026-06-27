@@ -140,6 +140,9 @@ static void window_load(Window *window) {
                                .select_long_click = menu_select_long_click,
                            });
   menu_layer_set_click_config_onto_window(s_menu, window);
+#if defined(PBL_ROUND)
+  menu_layer_set_center_focused(s_menu, true);
+#endif
   apply_theme_colors();
   layer_add_child(root, menu_layer_get_layer(s_menu));
 }
