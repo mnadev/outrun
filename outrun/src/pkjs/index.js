@@ -59,9 +59,12 @@ var debugHr = 130;
 var debugPaceOffset = 0;
 
 function sendPaceUpdate(currentPace, targetPace) {
+    // NOTE: do NOT send TARGET_PACE here. The watch owns the target pace (set in
+    // Settings / the pace picker / UP-DOWN during a quick run) and pushes changes
+    // to the phone. Echoing the phone's target back would overwrite the runner's
+    // chosen pace with the phone's default on the first GPS update.
     var message = {};
     message[Keys.CURRENT_PACE] = currentPace;
-    message[Keys.TARGET_PACE] = targetPace;
     message[Keys.IS_RUNNING] = isTracking ? 1 : 0;
     message[Keys.CURRENT_DISTANCE] = paceCalculator.getTotalDistance();
 
