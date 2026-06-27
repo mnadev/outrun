@@ -127,10 +127,6 @@ static void menu_select_long_click(MenuLayer *menu, MenuIndex *cell_index, void 
   menu_layer_reload_data(s_menu);
 }
 
-static void click_config(void *context) {
-  window_single_click_subscribe(BUTTON_ID_BACK, NULL);
-}
-
 static void window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(root);
@@ -158,6 +154,5 @@ void settings_window_push(void) {
   s_window = window_create();
   window_set_window_handlers(s_window,
                              (WindowHandlers){.load = window_load, .unload = window_unload});
-  window_set_click_config_provider(s_window, click_config);
   window_stack_push(s_window, true);
 }
