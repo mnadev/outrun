@@ -7,9 +7,6 @@
  * - Virtual pacers
  */
 
-var StravaAuth = require('./strava_auth');
-var MockBackend = require('./mock_backend');
-
 // Storage
 var STORAGE_GHOST_RUNS = 'outrun_ghost_runs';
 var MAX_STORED_RUNS = 20;
