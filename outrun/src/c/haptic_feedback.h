@@ -23,24 +23,6 @@ void haptic_init(void);
 void haptic_deinit(void);
 
 /**
- * Soft pulse - used when on target pace.
- * Gentle reminder that you're safe... for now.
- */
-void haptic_pulse_soft(void);
-
-/**
- * Rapid heartbeat - used when falling behind.
- * The killer is gaining!
- */
-void haptic_pulse_rapid(void);
-
-/**
- * Danger pulse - used when critically behind.
- * You're about to be caught!
- */
-void haptic_pulse_danger(void);
-
-/**
  * Jump scare - used for segment alerts and rival notifications.
  * A long, aggressive vibration to get attention.
  */
@@ -58,10 +40,8 @@ void haptic_start_heartbeat(bool behind);
  */
 void haptic_stop_heartbeat(void);
 
-/** Pacer alert patterns */
-void haptic_pace_too_slow(void);
-void haptic_pace_too_fast(void);
-void haptic_hr_too_high(void);
-void haptic_hr_too_low(void);
+/** Plan segment transition cue. */
 void haptic_segment_change(void);
+
+/** Fire the haptic for a debounced pace/HR alert (maps alert -> pattern). */
 void haptic_fire_alert(AlertType alert);

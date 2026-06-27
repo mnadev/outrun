@@ -26,21 +26,7 @@ void haptic_init(void) {
 
 void haptic_deinit(void) { haptic_stop_heartbeat(); }
 
-void haptic_pulse_soft(void) { feedback_fire(HAPTIC_HEARTBEAT_SOFT); }
-
-void haptic_pulse_rapid(void) { feedback_fire(HAPTIC_HEARTBEAT_RAPID); }
-
-void haptic_pulse_danger(void) { feedback_fire(HAPTIC_DANGER); }
-
 void haptic_jump_scare(void) { themes_haptic_scare(); }
-
-void haptic_pace_too_slow(void) { feedback_fire(HAPTIC_PACE_TOO_SLOW); }
-
-void haptic_pace_too_fast(void) { feedback_fire(HAPTIC_PACE_TOO_FAST); }
-
-void haptic_hr_too_high(void) { feedback_fire(HAPTIC_HR_TOO_HIGH); }
-
-void haptic_hr_too_low(void) { feedback_fire(HAPTIC_HR_TOO_LOW); }
 
 void haptic_segment_change(void) { feedback_fire(HAPTIC_SEGMENT_CHANGE); }
 
