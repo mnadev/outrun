@@ -1,9 +1,14 @@
 /**
  * pace_calculator.js - Pace calculation from GPS data
- * 
- * Calculates running pace using a rolling window of GPS positions.
- * Uses Haversine formula for distance calculation.
+ *
+ * GPS fixes are run through a constant-velocity Kalman filter (gps_kalman.js):
+ * distance accumulates between SMOOTHED positions (less jitter inflation) and
+ * current pace comes from the filter's velocity estimate (smoother and lower-lag
+ * than dividing distance over a fixed window). Gross outliers, out-of-order
+ * samples, and inaccurate fixes are still rejected before the filter sees them.
  */
+
+var GpsKalman = require('./gps_kalman');
 
 /**
  * Calculate distance between two GPS coordinates (Haversine formula)
@@ -41,9 +46,11 @@ var MIN_MOVE_M = 2;        // ignore sub-2m movement as stationary jitter
 function PaceCalculator() {
   this.locations = [];
   this.targetPace = 300; // Default 5:00/km
-  this.windowSize = 5;   // Rolling window of 5 GPS points
+  this.windowSize = 5;   // Recent smoothed points kept for the track/elapsed
   this.totalDistance = 0;
   this.startTime = null;
+  this.currentSpeed = 0; // m/s, from the Kalman velocity estimate
+  this.kalman = new GpsKalman();
 }
 
 /**
@@ -53,6 +60,8 @@ PaceCalculator.prototype.reset = function () {
   this.locations = [];
   this.totalDistance = 0;
   this.startTime = null;
+  this.currentSpeed = 0;
+  this.kalman.reset();
 };
 
 /**
@@ -71,39 +80,56 @@ PaceCalculator.prototype.addLocation = function (location) {
     this.startTime = location.timestamp;
   }
 
-  // Calculate distance from previous point
+  var rawLat = location.lat;
+  var rawLng = location.lng;
+
   if (this.locations.length > 0) {
     var prev = this.locations[this.locations.length - 1];
-    var dist = haversineDistance(prev.lat, prev.lng, location.lat, location.lng);
     var dt = (location.timestamp - prev.timestamp) / 1000; // seconds
 
     // Reject out-of-order / duplicate timestamps: we can't derive a speed, and
-    // it would otherwise produce a divide-by-zero or a bogus pace spike.
+    // it would otherwise divide by zero or spike the pace -- and would corrupt
+    // the filter's dt.
     if (dt <= 0) {
       console.log('Skipping out-of-order GPS sample');
       return;
     }
 
-    // Reject implausibly fast jumps (GPS glitch / teleport). Speed-based rather
-    // than a flat distance cap, so genuine movement across a sparse GPS gap
-    // (e.g. 200m over 60s) is kept instead of silently dropped.
-    if (dist > MAX_SPEED_MPS * dt) {
-      console.log('Skipping GPS jump: ' + dist.toFixed(0) + 'm in ' + dt.toFixed(0) + 's');
+    // Reject implausibly fast jumps (GPS glitch / teleport) against the RAW
+    // previous fix, before the filter sees them, so one teleport can't yank the
+    // estimate. Speed-based (not a flat cap) keeps genuine movement across a
+    // sparse GPS gap (e.g. 200m over 60s).
+    var rawDist = haversineDistance(prev.rawLat, prev.rawLng, rawLat, rawLng);
+    if (rawDist > MAX_SPEED_MPS * dt) {
+      console.log('Skipping GPS jump: ' + rawDist.toFixed(0) + 'm in ' + dt.toFixed(0) + 's');
       return;
     }
 
-    // Treat sub-threshold movement as stationary jitter so standing still
-    // doesn't accrue phantom distance. The point is still recorded (window time
-    // keeps advancing) so pace reflects that you've slowed/stopped.
-    if (dist < MIN_MOVE_M) {
-      dist = 0;
-    }
+    var est = this.kalman.update(rawLat, rawLng, location.accuracy, dt);
+    this.currentSpeed = est.speed;
 
-    this.totalDistance += dist;
-    location.distance = dist;
+    // Distance between consecutive SMOOTHED positions; sub-threshold steps are
+    // treated as residual jitter so standing still doesn't accrue distance.
+    var step = haversineDistance(prev.lat, prev.lng, est.lat, est.lng);
+    if (step < MIN_MOVE_M) {
+      step = 0;
+    }
+    this.totalDistance += step;
+
+    location.lat = est.lat; // store smoothed position for distance/track
+    location.lng = est.lng;
+    location.distance = step;
   } else {
+    var first = this.kalman.update(rawLat, rawLng, location.accuracy, 0);
+    location.lat = first.lat; // equals raw on the first fix
+    location.lng = first.lng;
     location.distance = 0;
+    this.currentSpeed = 0;
   }
+
+  // Keep the raw fix for the next outlier check (location.lat is now smoothed).
+  location.rawLat = rawLat;
+  location.rawLng = rawLng;
 
   this.locations.push(location);
 
@@ -114,33 +140,18 @@ PaceCalculator.prototype.addLocation = function (location) {
 };
 
 /**
- * Calculate current pace (seconds per kilometer)
- * Uses a rolling window for smoothing
- * @returns {number} Pace in seconds/km, or 0 if insufficient data
+ * Calculate current pace (seconds per kilometer) from the Kalman velocity
+ * estimate. Smoother and lower-lag than dividing distance over a fixed window.
+ * @returns {number} Pace in seconds/km, or 0 if insufficient data / stopped
  */
 PaceCalculator.prototype.getCurrentPace = function () {
-  if (this.locations.length < 2) {
+  // Need at least one post-init fix for a velocity estimate.
+  if (this.locations.length < 2 || this.currentSpeed <= 0) {
     return 0;
   }
 
-  var first = this.locations[0];
-  var last = this.locations[this.locations.length - 1];
-
-  // Calculate distance in this window
-  var windowDistance = 0;
-  for (var i = 1; i < this.locations.length; i++) {
-    windowDistance += this.locations[i].distance;
-  }
-
-  // Calculate time in this window
-  var windowTime = (last.timestamp - first.timestamp) / 1000; // seconds
-
-  if (windowDistance < 1 || windowTime < 1) {
-    return 0;
-  }
-
-  // Pace = seconds per kilometer
-  var pace = (windowTime / windowDistance) * 1000;
+  // Pace = seconds per kilometer = 1000 / (meters per second).
+  var pace = 1000 / this.currentSpeed;
 
   // Clamp to reasonable values
   if (pace < 120) pace = 120;  // Faster than 2:00/km is probably GPS error

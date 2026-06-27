@@ -118,6 +118,59 @@ describe('PaceCalculator', () => {
     });
   });
 
+  describe('Kalman-smoothed distance and pace', () => {
+    const M_PER_DEG = 6371000 * Math.PI / 180;
+
+    // Deterministic PRNG so the noise test is reproducible.
+    function makeRng(seed) {
+      return function () {
+        seed |= 0;
+        seed = (seed + 0x6D2B79F5) | 0;
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    test('accurate distance and pace on a clean constant-speed track', () => {
+      const base = 1000000;
+      const dLat = 3 / M_PER_DEG; // 3 m/s -> 5:33/km
+      let lat = 40.0;
+      calculator.addLocation({ lat, lng: -73.0, accuracy: 5, timestamp: base });
+      for (let i = 1; i <= 60; i++) {
+        lat += dLat;
+        calculator.addLocation({ lat, lng: -73.0, accuracy: 5, timestamp: base + i * 1000 });
+      }
+      // True distance = 3 m/s * 60s = 180m; smoothing must not bias it much, and
+      // crucially must NOT under-count (the constant-velocity model's whole point).
+      const dist = calculator.getTotalDistance();
+      expect(dist).toBeGreaterThan(170);
+      expect(dist).toBeLessThan(190);
+      // True pace = 1000/3 = 333 s/km.
+      const pace = calculator.getCurrentPace();
+      expect(pace).toBeGreaterThan(310);
+      expect(pace).toBeLessThan(355);
+    });
+
+    test('noise does not massively inflate distance', () => {
+      const base = 1000000;
+      const rng = makeRng(7);
+      const dLat = 3 / M_PER_DEG;
+      const noiseDeg = 6 / M_PER_DEG; // ~6m position noise each fix
+      const lat0 = 40.0;
+      calculator.addLocation({ lat: lat0, lng: -73.0, accuracy: 8, timestamp: base });
+      for (let i = 1; i <= 60; i++) {
+        const measLat = lat0 + i * dLat + (rng() - 0.5) * 2 * noiseDeg;
+        calculator.addLocation({ lat: measLat, lng: -73.0, accuracy: 8, timestamp: base + i * 1000 });
+      }
+      // True ~180m. Summing raw noisy fixes would inflate well past 200m; the
+      // filter keeps the accumulated distance close to truth.
+      const dist = calculator.getTotalDistance();
+      expect(dist).toBeGreaterThan(150);
+      expect(dist).toBeLessThan(210);
+    });
+  });
+
   describe('getCurrentPace', () => {
     test('returns 0 with insufficient data', () => {
       expect(calculator.getCurrentPace()).toBe(0);
