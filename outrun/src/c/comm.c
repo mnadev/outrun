@@ -136,10 +136,9 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
     run_window_update();
   }
 
-  Tuple *target_tuple = dict_find(iterator, KEY_TARGET_PACE);
-  if (target_tuple) {
-    pace_engine_set_target(target_tuple->value->int32);
-  }
+  // Target pace is watch-authoritative (Settings / pace picker / UP-DOWN); the
+  // phone never sends it back, so there is intentionally no inbound TARGET_PACE
+  // handler here. Re-add one only if a phone-driven target is ever desired.
 
   Tuple *distance_tuple = dict_find(iterator, KEY_CURRENT_DISTANCE);
   if (distance_tuple && run_state_get() == RUN_ACTIVE) {
@@ -155,8 +154,8 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
   }
 
   Tuple *hr_tuple = dict_find(iterator, KEY_HEART_RATE);
-  if (hr_tuple && run_session_is_active()) {
-    hr_monitor_set_debug_bpm((uint8_t)hr_tuple->value->int32);
+  if (hr_tuple && run_state_get() == RUN_ACTIVE) {
+    hr_monitor_set_phone_bpm((uint8_t)hr_tuple->value->int32);
     run_window_update();
   }
 
