@@ -63,9 +63,10 @@ function sendPaceUpdate(currentPace, targetPace) {
     // Settings / the pace picker / UP-DOWN during a quick run) and pushes changes
     // to the phone. Echoing the phone's target back would overwrite the runner's
     // chosen pace with the phone's default on the first GPS update.
+    // IS_RUNNING is intentionally not sent: the watch drives the run lifecycle
+    // and never reads it. (Key kept reserved in package.json for alignment.)
     var message = {};
     message[Keys.CURRENT_PACE] = currentPace;
-    message[Keys.IS_RUNNING] = isTracking ? 1 : 0;
     message[Keys.CURRENT_DISTANCE] = paceCalculator.getTotalDistance();
 
     Pebble.sendAppMessage(message,
@@ -152,11 +153,13 @@ function sendConnectedStatus() {
  * Send segment alert to watch
  */
 function sendSegmentAlert(segmentName, rivalName, rivalTime) {
+    // RIVAL_TIME is not sent: the watch shows the ahead/behind state baked into
+    // RIVAL_NAME and never reads RIVAL_TIME. (rivalTime kept in the signature
+    // for call-site clarity; key kept reserved in package.json for alignment.)
     var message = {};
     message[Keys.SEGMENT_ACTIVE] = 1;
     message[Keys.SEGMENT_NAME] = segmentName || 'Segment';
     message[Keys.RIVAL_NAME] = rivalName || 'PR';
-    message[Keys.RIVAL_TIME] = rivalTime || 0;
 
     Pebble.sendAppMessage(message,
         function () {
