@@ -24,6 +24,9 @@ static Layer *s_killer_bar;
 static bool s_show_summary;
 static bool s_tick_subscribed;
 
+typedef enum { HB_OFF, HB_SOFT, HB_RAPID } HbMode;
+static HbMode s_hb_mode;
+
 static char s_pace_buffer[32];
 static char s_hr_buffer[24];
 static char s_stats_buffer[40];
@@ -84,6 +87,24 @@ static GColor pace_state_color(PaceState st) {
 #endif
 }
 
+// Killer bar uses the active stalker's colors: its primary hue while you're
+// safe, yellow when behind, its danger hue when you're about to be caught.
+static GColor killer_bar_color(PaceState st) {
+#if defined(PBL_COLOR)
+  switch (st) {
+  case PACE_DANGER:
+    return themes_get_danger_color(themes_get_current());
+  case PACE_BEHIND:
+    return GColorYellow;
+  default:
+    return themes_get_primary_color(themes_get_current());
+  }
+#else
+  (void)st;
+  return GColorWhite;
+#endif
+}
+
 // "Distance from killer": a lead bar that empties as the stalker closes in.
 static void killer_bar_update(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
@@ -101,7 +122,7 @@ static void killer_bar_update(Layer *layer, GContext *ctx) {
   graphics_context_set_stroke_color(ctx, GColorWhite);
   graphics_draw_rect(ctx, GRect(0, 0, b.size.w, b.size.h));
 
-  graphics_context_set_fill_color(ctx, pace_state_color(pace->state));
+  graphics_context_set_fill_color(ctx, killer_bar_color(pace->state));
   if (fill_w > 2) {
     graphics_fill_rect(ctx, GRect(1, 1, fill_w - 2, b.size.h - 2), 0, GCornerNone);
   }
@@ -115,6 +136,31 @@ static TextLayer *make_run_label(Layer *parent, GRect frame, const char *font_ke
   text_layer_set_text_color(t, GColorWhite);
   layer_add_child(parent, text_layer_get_layer(t));
   return t;
+}
+
+// The chase heartbeat: silent when safe, the stalker's pulse when you fall
+// behind, its frantic danger beat when you're about to be caught. Re-armed
+// only when the level changes so the timer never thrashes.
+static void update_heartbeat(RunState state, PaceState ps) {
+  HbMode want = HB_OFF;
+  if (state == RUN_ACTIVE) {
+    if (ps == PACE_DANGER) {
+      want = HB_RAPID;
+    } else if (ps == PACE_BEHIND) {
+      want = HB_SOFT;
+    }
+  }
+
+  if (want == s_hb_mode) {
+    return;
+  }
+  s_hb_mode = want;
+
+  if (want == HB_OFF) {
+    haptic_stop_heartbeat();
+  } else {
+    haptic_start_heartbeat(want == HB_RAPID);
+  }
 }
 
 void run_window_show_summary(void) {
@@ -132,6 +178,8 @@ void run_window_update(void) {
   const RunStats *stats = run_state_get_stats();
   const AppSettings *settings = settings_get();
   RunState state = run_state_get();
+
+  update_heartbeat(state, pace->state);
 
   if (s_show_summary && state == RUN_COMPLETE) {
     const ThemeConfig *theme = themes_get_current_config();
@@ -209,6 +257,15 @@ void run_window_update(void) {
     if (bpm > 0) {
       snprintf(s_hr_buffer, sizeof(s_hr_buffer), "HR %u (%u-%u)", bpm, hr_lo, hr_hi);
       layer_set_hidden(text_layer_get_layer(s_hr_layer), false);
+#if defined(PBL_COLOR)
+      GColor hr_color = GColorWhite;
+      if (bpm > hr_hi) {
+        hr_color = GColorRed; // working too hard
+      } else if (bpm < hr_lo) {
+        hr_color = GColorCyan; // below target zone
+      }
+      text_layer_set_text_color(s_hr_layer, hr_color);
+#endif
     } else {
       snprintf(s_hr_buffer, sizeof(s_hr_buffer), " ");
       layer_set_hidden(text_layer_get_layer(s_hr_layer), true);
@@ -468,6 +525,8 @@ static void window_load(Window *window) {
 
 static void window_unload(Window *window) {
   unsubscribe_tick();
+  haptic_stop_heartbeat();
+  s_hb_mode = HB_OFF;
 
   text_layer_destroy(s_pace_label);
   text_layer_destroy(s_pace_layer);
@@ -490,6 +549,7 @@ static void window_unload(Window *window) {
 static void push_window(void) {
   s_window = window_create();
   s_show_summary = false;
+  s_hb_mode = HB_OFF;
   window_set_click_config_provider(s_window, click_config_provider);
   window_set_window_handlers(s_window,
                              (WindowHandlers){.load = window_load, .unload = window_unload});

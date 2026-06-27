@@ -11,6 +11,7 @@
 #include "feedback.h"
 #include "haptic_patterns.h"
 #include "pebble_watch.h"
+#include "stalker_themes.h"
 
 #include <pebble.h> // AppTimer / app_timer_* for the heartbeat loop
 
@@ -31,7 +32,7 @@ void haptic_pulse_rapid(void) { feedback_fire(HAPTIC_HEARTBEAT_RAPID); }
 
 void haptic_pulse_danger(void) { feedback_fire(HAPTIC_DANGER); }
 
-void haptic_jump_scare(void) { feedback_fire(HAPTIC_JUMP_SCARE); }
+void haptic_jump_scare(void) { themes_haptic_scare(); }
 
 void haptic_pace_too_slow(void) { feedback_fire(HAPTIC_PACE_TOO_SLOW); }
 
@@ -47,9 +48,19 @@ void haptic_fire_alert(AlertType alert) {
   feedback_fire(haptic_event_for_alert(alert));
 }
 
+// The heartbeat speaks in the active stalker's voice: its "pulse" pattern when
+// merely behind, its "danger" pattern when about to be caught.
+static void play_heartbeat_pulse(void) {
+  if (s_is_rapid) {
+    themes_haptic_danger();
+  } else {
+    themes_haptic_pulse();
+  }
+}
+
 static void heartbeat_timer_callback(void *data) {
   (void)data;
-  feedback_fire(s_is_rapid ? HAPTIC_HEARTBEAT_RAPID : HAPTIC_HEARTBEAT_SOFT);
+  play_heartbeat_pulse();
   uint32_t interval =
       s_is_rapid ? HAPTIC_HEARTBEAT_RAPID_MS : HAPTIC_HEARTBEAT_SOFT_MS;
   s_heartbeat_timer =
@@ -60,7 +71,7 @@ void haptic_start_heartbeat(bool behind) {
   haptic_stop_heartbeat();
   s_is_rapid = behind;
 
-  feedback_fire(behind ? HAPTIC_HEARTBEAT_RAPID : HAPTIC_HEARTBEAT_SOFT);
+  play_heartbeat_pulse();
 
   uint32_t interval =
       behind ? HAPTIC_HEARTBEAT_RAPID_MS : HAPTIC_HEARTBEAT_SOFT_MS;
