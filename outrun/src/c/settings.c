@@ -73,10 +73,6 @@ void settings_set_target_pace(int32_t pace_sec_per_km) {
   settings_save();
 }
 
-void settings_adjust_target_pace(int32_t delta_sec) {
-  settings_set_target_pace(s_settings.target_pace_sec_per_km + delta_sec);
-}
-
 void settings_set_hr_zone(uint8_t lo, uint8_t hi) {
   if (lo < 60) {
     lo = 60;

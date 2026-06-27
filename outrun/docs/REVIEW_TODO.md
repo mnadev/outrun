@@ -21,13 +21,9 @@ P3.
 - `window_destroy()`-in-`unload()`: stress-tested rapid push/pop of all
   windows on basalt; stable, no crash. Left as-is (rewriting the lifecycle
   across 4 windows would add risk for no observed benefit).
-
-## P2 — remaining
-
-1. **Long-press affordance for slower pace is undiscoverable.** In Settings,
-   Target Pace uses click = faster, long-click = slower; nothing tells the
-   user long-press lowers it. Surface a hint or use a dedicated adjuster.
-   (Deliberately not adding clutter to the glanceable run screen.)
+- Target-pace UX: replaced the undiscoverable click/long-click stepping with a
+  full-screen alarm-style MM:SS picker (`pace_window.c`), opened from Settings.
+  Removed the now-dead `settings_adjust_target_pace`.
 
 ## P3 — remaining polish / tech-debt
 

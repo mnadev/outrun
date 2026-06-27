@@ -35,7 +35,6 @@ void settings_init(void);
 const AppSettings *settings_get(void);
 void settings_set_units(DistanceUnits units);
 void settings_set_target_pace(int32_t pace_sec_per_km);
-void settings_adjust_target_pace(int32_t delta_sec);
 void settings_set_hr_zone(uint8_t lo, uint8_t hi);
 void settings_set_pace_alerts(bool enabled);
 void settings_set_hr_alerts(bool enabled);
