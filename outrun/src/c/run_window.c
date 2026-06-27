@@ -368,8 +368,10 @@ void run_window_show_segment_alert(const char *segment_name, const char *rival_n
   s_rival_active = true;
   snprintf(s_rival_buffer, sizeof(s_rival_buffer), "vs %s",
            rival_name ? rival_name : "Rival");
-  // Jump scare only when the rival first appears, not on every gap update.
-  if (!was_active) {
+  // Jump scare only when the rival first appears AND the run window is live
+  // with an active/paused run. Otherwise a segment/ghost message that arrives
+  // while you're in another window (or not running) would buzz out of nowhere.
+  if (!was_active && s_window && run_session_is_active()) {
     haptic_jump_scare();
   }
   run_window_update();
@@ -419,10 +421,12 @@ static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
     break;
   case RUN_ACTIVE:
     run_state_pause();
+    watch_heart_rate_stop();
     comm_send_command(CMD_PAUSE);
     break;
   case RUN_PAUSED:
     run_state_resume();
+    watch_heart_rate_start();
     comm_send_command(CMD_RESUME);
     break;
   case RUN_COMPLETE:
