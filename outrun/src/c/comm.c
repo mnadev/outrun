@@ -133,7 +133,7 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
   Tuple *pace_tuple = dict_find(iterator, KEY_CURRENT_PACE);
   if (pace_tuple && run_state_get() == RUN_ACTIVE) {
     pace_engine_update(pace_tuple->value->int32);
-    run_window_update();
+    run_window_note_live_pace(); // clears "Acquiring GPS" + refreshes
   }
 
   // Target pace is watch-authoritative (Settings / pace picker / UP-DOWN); the

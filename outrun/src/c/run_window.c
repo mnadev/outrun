@@ -31,6 +31,13 @@ static HbMode s_hb_mode;
 static bool s_rival_active;
 static char s_rival_buffer[40];
 
+// Live-pace honesty: don't present the target as if it were a live reading
+// before the phone delivers real GPS pace, or after the feed goes stale.
+#define PACE_STALE_SEC 10        // no pace for this long -> treat as lost
+#define GPS_ACQUIRE_GRACE_SEC 30 // after this with no pace ever -> "no signal"
+static bool s_live_pace;         // have we ever received pace this run?
+static uint32_t s_last_pace_sec; // elapsed seconds at the last pace update
+
 static char s_pace_buffer[32];
 static char s_hr_buffer[24];
 static char s_stats_buffer[40];
@@ -246,12 +253,21 @@ void run_window_update(void) {
   layer_set_hidden(s_killer_bar, false);
   layer_mark_dirty(s_killer_bar);
 
+  // Live pace is "fresh" only if we've received one this run and it's recent.
+  bool pace_fresh = s_live_pace &&
+                    (stats->elapsed_seconds - s_last_pace_sec <= PACE_STALE_SEC);
+
   char current[8], target[8];
-  settings_format_pace(current, sizeof(current), pace->current_pace_sec_per_km);
+  if (pace_fresh) {
+    settings_format_pace(current, sizeof(current), pace->current_pace_sec_per_km);
+  } else {
+    snprintf(current, sizeof(current), "--:--");
+  }
   settings_format_pace(target, sizeof(target), pace->target_pace_sec_per_km);
   snprintf(s_pace_buffer, sizeof(s_pace_buffer), "%s / %s", current, target);
   text_layer_set_text(s_pace_layer, s_pace_buffer);
-  text_layer_set_text_color(s_pace_layer, pace_state_color(pace->state));
+  text_layer_set_text_color(s_pace_layer,
+                            pace_fresh ? pace_state_color(pace->state) : GColorWhite);
 
   if (watch_heart_rate_available()) {
     uint8_t bpm = watch_heart_rate();
@@ -333,6 +349,17 @@ void run_window_update(void) {
     status = "SELECT to start";
     break;
   case RUN_ACTIVE:
+    if (!pace_fresh) {
+      // No live GPS pace: say so honestly instead of voicing a faked chase.
+      if (!s_live_pace) {
+        status = (stats->elapsed_seconds < GPS_ACQUIRE_GRACE_SEC)
+                     ? "Acquiring GPS"
+                     : "No GPS signal";
+      } else {
+        status = "GPS lost";
+      }
+      break;
+    }
     // Speak in the theme's voice based on how the chase is going.
     switch (pace->state) {
     case PACE_AHEAD:
@@ -369,6 +396,12 @@ void run_window_update(void) {
 #if defined(PBL_COLOR)
   text_layer_set_text_color(s_status_layer, status_color);
 #endif
+}
+
+void run_window_note_live_pace(void) {
+  s_live_pace = true;
+  s_last_pace_sec = run_state_get_stats()->elapsed_seconds;
+  run_window_update();
 }
 
 void run_window_show_segment_alert(const char *segment_name, const char *rival_name) {
@@ -590,6 +623,8 @@ static void push_window(void) {
   s_show_summary = false;
   s_hb_mode = HB_OFF;
   s_rival_active = false;
+  s_live_pace = false;
+  s_last_pace_sec = 0;
   window_set_click_config_provider(s_window, click_config_provider);
   window_set_window_handlers(s_window,
                              (WindowHandlers){.load = window_load, .unload = window_unload});
