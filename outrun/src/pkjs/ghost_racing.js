@@ -18,6 +18,10 @@ var MAX_STORED_RUNS = 20;
 var currentGhost = null;
 var ghostIndex = 0;
 var ghostStartTime = null;
+// Cumulative distance (m) of the ghost up to each point index, built once per
+// race so ahead/behind is a cheap distance-progress comparison, not a guess
+// from wall-clock fractions. ghostCumulative[i] = distance covered by point i.
+var ghostCumulative = null;
 
 /**
  * Ghost run data structure
@@ -115,64 +119,90 @@ function startRacing(ghostId) {
   currentGhost = ghost;
   ghostIndex = 0;
   ghostStartTime = Date.now();
+  ghostCumulative = buildCumulativeDistances(ghost.points);
 
   console.log('Racing against ghost: ' + ghost.name);
   return true;
 }
 
 /**
- * Get ghost position at current time
- * Returns the ghost's position and time difference
+ * Cumulative distance covered along the ghost's track, indexed by point.
+ * @param {Array} points ghost points with {lat, lng}
+ * @returns {Array<number>} distances in meters, [0, d01, d012, ...]
+ */
+function buildCumulativeDistances(points) {
+  if (!points || points.length === 0) {
+    return [0];
+  }
+  var cumulative = [0];
+  for (var i = 1; i < points.length; i++) {
+    var step = haversineDistance(points[i - 1].lat, points[i - 1].lng,
+                                 points[i].lat, points[i].lng);
+    cumulative[i] = cumulative[i - 1] + step;
+  }
+  return cumulative;
+}
+
+/**
+ * Get the ghost's position and the runner's lead/lag versus it.
+ *
+ * Ahead/behind is decided by DISTANCE PROGRESS at the same elapsed time, not by
+ * comparing wall-clock fractions (which the old code did and which made the
+ * runner read "ahead" almost always). All times are milliseconds.
+ *
  * @param {number} currentLat
  * @param {number} currentLng
- * @returns {Object|null} {ghostLat, ghostLng, timeDiff, distanceDiff}
+ * @param {number} runnerDistance total meters the runner has covered so far
+ * @returns {Object|null} {ghostLat, ghostLng, timeDiff, distanceDiff, ghostFinished}
  */
-function getGhostPosition(currentLat, currentLng) {
+function getGhostPosition(currentLat, currentLng, runnerDistance) {
   if (!currentGhost || !ghostStartTime) {
     return null;
   }
 
-  // Calculate elapsed time since race start
-  var elapsed = Date.now() - ghostStartTime;
-
-  // Find ghost position at this elapsed time
   var points = currentGhost.points;
-  while (ghostIndex < points.length - 1 && points[ghostIndex + 1].timestamp < elapsed) {
+  // elapsed and point timestamps are both in ms.
+  var elapsed = Date.now() - ghostStartTime;
+  var totalTimeMs = currentGhost.totalTime;
+
+  // Advance to the last point at or before the current elapsed time.
+  while (ghostIndex < points.length - 1 && points[ghostIndex + 1].timestamp <= elapsed) {
     ghostIndex++;
   }
 
-  if (ghostIndex >= points.length) {
-    // Ghost finished
+  // Ghost finished once the runner has outlasted it. The old code's
+  // ghostIndex >= points.length branch was unreachable (the loop caps at
+  // length - 1), so the "done" state never fired.
+  var lastTs = points[points.length - 1].timestamp;
+  if (totalTimeMs > 0 && elapsed >= totalTimeMs) {
     return {
       ghostLat: points[points.length - 1].lat,
       ghostLng: points[points.length - 1].lng,
       ghostFinished: true,
+      distanceDiff: 0,
       timeDiff: 0
     };
   }
 
   var ghostPoint = points[ghostIndex];
+  var cumulative = ghostCumulative || buildCumulativeDistances(points);
 
-  // Calculate approximate distance to ghost
-  var distToGhost = haversineDistance(currentLat, currentLng, ghostPoint.lat, ghostPoint.lng);
+  // Distance the ghost had covered by this elapsed time.
+  var ghostDistance = cumulative[ghostIndex] || 0;
 
-  // Estimate time difference (roughly how far ahead/behind)
-  // Positive = ahead of ghost, Negative = behind ghost
-  var avgSpeed = currentGhost.totalDistance / currentGhost.totalTime;
-  var timeDiff = distToGhost / avgSpeed;
+  // Positive distanceDiff = runner is ahead (covered more ground);
+  // negative = behind. This is the real signal.
+  var distanceDiff = (runnerDistance || 0) - ghostDistance;
 
-  // Determine if ahead or behind based on ghost's progress
-  var ghostProgress = ghostPoint.timestamp / currentGhost.totalTime;
-  var runnerProgress = elapsed / currentGhost.totalTime;
-
-  if (runnerProgress < ghostProgress) {
-    timeDiff = -timeDiff; // Behind
-  }
+  // Convert the distance gap to an approximate time gap using the ghost's
+  // average speed in m/ms. Positive = ahead, negative = behind.
+  var avgSpeed = totalTimeMs > 0 ? currentGhost.totalDistance / totalTimeMs : 0;
+  var timeDiff = avgSpeed > 0 ? distanceDiff / avgSpeed : distanceDiff;
 
   return {
     ghostLat: ghostPoint.lat,
     ghostLng: ghostPoint.lng,
-    distanceDiff: Math.round(distToGhost),
+    distanceDiff: Math.round(distanceDiff),
     timeDiff: Math.round(timeDiff),
     ghostFinished: false
   };
@@ -185,6 +215,7 @@ function stopRacing() {
   currentGhost = null;
   ghostIndex = 0;
   ghostStartTime = null;
+  ghostCumulative = null;
 }
 
 /**
@@ -218,7 +249,11 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
 }
 
 /**
- * Create mock ghosts for demo/testing
+ * Create mock ghosts for demo/testing.
+ *
+ * totalTime and point timestamps are both in MILLISECONDS, matching the units
+ * real ghosts are saved with (index.js passes elapsed * 1000). The old values
+ * were in seconds, which broke getGhostPosition's speed/finish math.
  */
 function createMockGhosts() {
   var mockGhosts = [
@@ -226,16 +261,16 @@ function createMockGhosts() {
       id: 'ghost_demo_fast',
       name: 'Your Best 5K',
       date: Date.now() - 86400000, // Yesterday
-      points: generateMockPoints(5000, 1500), // 5K in 25min
-      totalTime: 1500,
+      points: generateMockPoints(5000, 1500), // 5K in 25min (1500s)
+      totalTime: 1500 * 1000,
       totalDistance: 5000
     },
     {
       id: 'ghost_demo_rival',
       name: 'Sarah\'s Segment',
       date: Date.now() - 172800000, // 2 days ago
-      points: generateMockPoints(2000, 480), // 2K in 8min
-      totalTime: 480,
+      points: generateMockPoints(2000, 480), // 2K in 8min (480s)
+      totalTime: 480 * 1000,
       totalDistance: 2000
     }
   ];

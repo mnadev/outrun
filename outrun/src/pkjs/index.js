@@ -204,9 +204,10 @@ function updateGhostRace(lat, lng) {
     }
     lastGhostUpdate = now;
 
-    var pos = GhostRacing.getGhostPosition(lat, lng);
+    var pos = GhostRacing.getGhostPosition(lat, lng,
+                                           paceCalculator.getTotalDistance());
     if (!pos) {
-        return;
+      return;
     }
     var ghost = GhostRacing.getCurrentGhost();
     var name = ghost ? ghost.name : 'Ghost';
