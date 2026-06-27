@@ -219,7 +219,10 @@ void run_window_update(void) {
     text_layer_set_text(s_hr_layer, s_hr_buffer);
 
     settings_format_pace(pace_str, sizeof(pace_str), stats->avg_pace_sec_per_km);
-    snprintf(s_stats_buffer, sizeof(s_stats_buffer), "%s /km", pace_str);
+    // settings_format_pace already converts to the display unit; label it to
+    // match (per mile in miles mode, not a hardcoded "/km").
+    const char *pace_unit = (settings->units == UNITS_MI) ? "/mi" : "/km";
+    snprintf(s_stats_buffer, sizeof(s_stats_buffer), "%s %s", pace_str, pace_unit);
     text_layer_set_text(s_stats_layer, s_stats_buffer);
 
     if (stats->avg_hr_bpm > 0) {
