@@ -14,6 +14,7 @@ var WatchCommands = require('./watch_commands');
 var StravaAuth = require('./strava_auth');
 var StravaSegments = require('./strava_segments');
 var ServerClient = require('./server_client');
+var GhostRacing = require('./ghost_racing');
 
 // State
 var isTracking = false;
@@ -22,6 +23,8 @@ var watchId = null;
 var paceCalculator = new PaceCalculator();
 var activeSegment = null;
 var segmentStartTime = null;
+var fullTrack = [];        // full GPS track for saving as a ghost
+var lastGhostUpdate = 0;   // throttle rival gap updates to the watch
 
 // Message keys (must match package.json)
 var Keys = {
@@ -173,6 +176,54 @@ function sendSegmentEnd() {
 }
 
 /**
+ * Race the most recent saved run (offline; no server needed).
+ */
+function startGhostRace() {
+    var ghosts = GhostRacing.loadGhosts();
+    if (!ghosts || ghosts.length === 0) {
+        return;
+    }
+    if (GhostRacing.startRacing(ghosts[0].id)) {
+        lastGhostUpdate = 0;
+        var ghost = GhostRacing.getCurrentGhost();
+        var name = ghost ? ghost.name : 'Ghost';
+        sendSegmentAlert(name, name, 0); // rival appears -> watch jump scare
+    }
+}
+
+/**
+ * Send the rival gap (ahead/behind) to the watch, throttled.
+ */
+function updateGhostRace(lat, lng) {
+    if (!GhostRacing.isRacing()) {
+        return;
+    }
+    var now = Date.now();
+    if (now - lastGhostUpdate < 5000) {
+        return;
+    }
+    lastGhostUpdate = now;
+
+    var pos = GhostRacing.getGhostPosition(lat, lng);
+    if (!pos) {
+        return;
+    }
+    var ghost = GhostRacing.getCurrentGhost();
+    var name = ghost ? ghost.name : 'Ghost';
+
+    if (pos.ghostFinished) {
+        sendSegmentAlert(name, name + ' done', 0);
+        GhostRacing.stopRacing();
+        return;
+    }
+
+    // timeDiff units are loosely defined in the module, so show a robust
+    // ahead/behind indicator rather than a possibly-miscalibrated number.
+    var label = name + (pos.timeDiff >= 0 ? ' ahead' : ' behind');
+    sendSegmentAlert(name, label, pos.timeDiff);
+}
+
+/**
  * Handle GPS position update
  */
 function handlePosition(position) {
@@ -190,6 +241,7 @@ function handlePosition(position) {
 
     // Add to pace calculator
     paceCalculator.addLocation(location);
+    fullTrack.push({ lat: lat, lng: lng, timestamp: location.timestamp });
 
     // Get calculated pace
     var pace = paceCalculator.getCurrentPace();
@@ -203,6 +255,8 @@ function handlePosition(position) {
     if (StravaAuth.isAuthenticated()) {
         checkSegments(lat, lng);
     }
+
+    updateGhostRace(lat, lng);
 }
 
 /**
@@ -286,11 +340,13 @@ function startDebugSimulator() {
         };
 
         paceCalculator.addLocation(location);
+        fullTrack.push({ lat: debugLat, lng: debugLng, timestamp: location.timestamp });
         var pace = paceCalculator.getCurrentPace();
         if (pace > 0) {
             sendPaceUpdate(pace, targetPace);
         }
         sendHeartRate(debugHr);
+        updateGhostRace(debugLat, debugLng);
     }, 1000);
 }
 
@@ -310,9 +366,13 @@ function startTracking() {
     paceCalculator.reset();
     activeSegment = null;
     segmentStartTime = null;
+    fullTrack = [];
 
     // Load cached segments
     StravaSegments.loadCachedSegments();
+
+    // Race your most recent run as a ghost rival (offline, on-phone storage).
+    startGhostRace();
 
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
         startDebugSimulator();
@@ -359,6 +419,15 @@ function stopTracking() {
     var distance = paceCalculator.getTotalDistance();
     var avgPace = paceCalculator.getAveragePace();
     var targetPace = paceCalculator.getTargetPace();
+
+    // Save this run as a ghost rival for next time, then clear the watch rival.
+    if (fullTrack.length >= 5) {
+        GhostRacing.saveGhost(null, fullTrack, elapsed * 1000, distance);
+    }
+    if (GhostRacing.isRacing()) {
+        GhostRacing.stopRacing();
+    }
+    sendSegmentEnd();
 
     // Calculate composure (how close to target pace)
     var composure = 100;

@@ -27,6 +27,9 @@ static bool s_tick_subscribed;
 typedef enum { HB_OFF, HB_SOFT, HB_RAPID } HbMode;
 static HbMode s_hb_mode;
 
+static bool s_rival_active;
+static char s_rival_buffer[40];
+
 static char s_pace_buffer[32];
 static char s_hr_buffer[24];
 static char s_stats_buffer[40];
@@ -283,7 +286,14 @@ void run_window_update(void) {
   snprintf(s_stats_buffer, sizeof(s_stats_buffer), "%s  %s", elapsed, dist);
   text_layer_set_text(s_stats_layer, s_stats_buffer);
 
-  if (run_session_is_planned()) {
+  if (s_rival_active) {
+    // A rival (ghost/segment) takes over the segment line.
+    text_layer_set_text(s_segment_layer, s_rival_buffer);
+#if defined(PBL_COLOR)
+    text_layer_set_text_color(s_segment_layer,
+                              themes_get_primary_color(themes_get_current()));
+#endif
+  } else if (run_session_is_planned()) {
     const PlanProgress *progress = run_session_get_progress();
     const PlanSegment *segment = plan_progress_current_segment(progress);
     if (segment) {
@@ -296,6 +306,9 @@ void run_window_update(void) {
                  plan_segment_label_name(segment->label), (unsigned long)remaining);
       }
       text_layer_set_text(s_segment_layer, s_segment_buffer);
+#if defined(PBL_COLOR)
+      text_layer_set_text_color(s_segment_layer, GColorWhite);
+#endif
     }
   } else {
     text_layer_set_text(s_segment_layer, "");
@@ -351,10 +364,21 @@ void run_window_update(void) {
 
 void run_window_show_segment_alert(const char *segment_name, const char *rival_name) {
   (void)segment_name;
-  (void)rival_name;
+  bool was_active = s_rival_active;
+  s_rival_active = true;
+  snprintf(s_rival_buffer, sizeof(s_rival_buffer), "vs %s",
+           rival_name ? rival_name : "Rival");
+  // Jump scare only when the rival first appears, not on every gap update.
+  if (!was_active) {
+    haptic_jump_scare();
+  }
+  run_window_update();
 }
 
-void run_window_hide_segment_alert(void) {}
+void run_window_hide_segment_alert(void) {
+  s_rival_active = false;
+  run_window_update();
+}
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   if (!(units_changed & SECOND_UNIT)) {
@@ -550,6 +574,7 @@ static void push_window(void) {
   s_window = window_create();
   s_show_summary = false;
   s_hb_mode = HB_OFF;
+  s_rival_active = false;
   window_set_click_config_provider(s_window, click_config_provider);
   window_set_window_handlers(s_window,
                              (WindowHandlers){.load = window_load, .unload = window_unload});
