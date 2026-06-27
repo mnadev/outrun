@@ -67,9 +67,15 @@ static void click_config_provider(void *context) {
 }
 
 static void format_elapsed(char *buffer, size_t size, uint32_t seconds) {
-  uint32_t mins = seconds / 60;
+  uint32_t hours = seconds / 3600;
+  uint32_t mins = (seconds % 3600) / 60;
   uint32_t secs = seconds % 60;
-  snprintf(buffer, size, "%lu:%02lu", (unsigned long)mins, (unsigned long)secs);
+  if (hours > 0) {
+    snprintf(buffer, size, "%lu:%02lu:%02lu", (unsigned long)hours,
+             (unsigned long)mins, (unsigned long)secs);
+  } else {
+    snprintf(buffer, size, "%lu:%02lu", (unsigned long)mins, (unsigned long)secs);
+  }
 }
 
 // Traffic-light feedback by pace state; white on black-and-white watches.
