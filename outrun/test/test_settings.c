@@ -29,6 +29,7 @@ void test_persist_round_trip(void) {
   settings_set_target_pace(360);
   settings_set_hr_zone(130, 160);
   settings_set_pace_alerts(false);
+  settings_set_accent(ACCENT_CYAN);
 
   // Re-init reads back the versioned blob (simulates relaunch).
   settings_init();
@@ -38,6 +39,19 @@ void test_persist_round_trip(void) {
   TEST_ASSERT_EQUAL_UINT8(130, s->hr_zone_lo);
   TEST_ASSERT_EQUAL_UINT8(160, s->hr_zone_hi);
   TEST_ASSERT_FALSE(s->pace_alerts_enabled);
+  TEST_ASSERT_EQUAL_INT(ACCENT_CYAN, s->accent);
+}
+
+void test_accent_defaults_to_theme(void) {
+  settings_init();
+  TEST_ASSERT_EQUAL_INT(ACCENT_THEME, settings_get()->accent);
+}
+
+void test_accent_rejects_out_of_range(void) {
+  settings_init();
+  settings_set_accent(ACCENT_GREEN);
+  settings_set_accent((AccentColor)999); // ignored
+  TEST_ASSERT_EQUAL_INT(ACCENT_GREEN, settings_get()->accent);
 }
 
 void test_legacy_unversioned_blob_is_rejected(void) {
@@ -103,6 +117,8 @@ int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_defaults_when_storage_empty);
   RUN_TEST(test_persist_round_trip);
+  RUN_TEST(test_accent_defaults_to_theme);
+  RUN_TEST(test_accent_rejects_out_of_range);
   RUN_TEST(test_legacy_unversioned_blob_is_rejected);
   RUN_TEST(test_garbage_blob_is_rejected);
   RUN_TEST(test_pace_step_km_is_full_seconds);

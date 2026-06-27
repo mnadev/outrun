@@ -3,6 +3,7 @@
  */
 
 #include "run_window.h"
+#include "accent.h"
 #include "comm.h"
 #include "haptic_feedback.h"
 #include "pace_engine.h"
@@ -100,7 +101,7 @@ static GColor killer_bar_color(PaceState st) {
   case PACE_BEHIND:
     return GColorYellow;
   default:
-    return themes_get_primary_color(themes_get_current());
+    return accent_get_color();
   }
 #else
   (void)st;
@@ -290,8 +291,7 @@ void run_window_update(void) {
     // A rival (ghost/segment) takes over the segment line.
     text_layer_set_text(s_segment_layer, s_rival_buffer);
 #if defined(PBL_COLOR)
-    text_layer_set_text_color(s_segment_layer,
-                              themes_get_primary_color(themes_get_current()));
+    text_layer_set_text_color(s_segment_layer, accent_get_color());
 #endif
   } else if (run_session_is_planned()) {
     const PlanProgress *progress = run_session_get_progress();

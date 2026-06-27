@@ -9,8 +9,8 @@
 
 #include "pace_window.h"
 
+#include "accent.h"
 #include "settings.h"
-#include "stalker_themes.h"
 
 #include <pebble.h>
 
@@ -52,13 +52,7 @@ static void adjust(int dir) {
   layer_mark_dirty(s_layer);
 }
 
-static GColor highlight_color(void) {
-#if defined(PBL_COLOR)
-  return themes_get_primary_color(themes_get_current());
-#else
-  return GColorWhite;
-#endif
-}
+static GColor highlight_color(void) { return accent_get_color(); }
 
 static void draw_field(GContext *ctx, GRect box, const char *txt, bool selected,
                        GColor hi) {

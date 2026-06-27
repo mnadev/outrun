@@ -10,7 +10,7 @@
 // blob is detected and ignored instead of being misread as the current struct.
 // Bump SETTINGS_VERSION whenever the AppSettings layout changes.
 #define SETTINGS_MAGIC 0x4F55u // 'O','U'
-#define SETTINGS_VERSION 1u
+#define SETTINGS_VERSION 2u     // v2 added AppSettings.accent
 
 typedef struct {
   uint16_t magic;
@@ -27,6 +27,7 @@ static void apply_defaults(void) {
   s_settings.hr_zone_hi = DEFAULT_HR_ZONE_HI;
   s_settings.pace_alerts_enabled = true;
   s_settings.hr_alerts_enabled = true;
+  s_settings.accent = ACCENT_THEME;
 }
 
 void settings_init(void) {
@@ -52,6 +53,10 @@ void settings_init(void) {
   if (s_settings.hr_zone_lo >= s_settings.hr_zone_hi) {
     s_settings.hr_zone_lo = DEFAULT_HR_ZONE_LO;
     s_settings.hr_zone_hi = DEFAULT_HR_ZONE_HI;
+  }
+
+  if (s_settings.accent >= ACCENT_COUNT) {
+    s_settings.accent = ACCENT_THEME;
   }
 }
 
@@ -86,6 +91,39 @@ void settings_set_hr_zone(uint8_t lo, uint8_t hi) {
   s_settings.hr_zone_lo = lo;
   s_settings.hr_zone_hi = hi;
   settings_save();
+}
+
+void settings_set_accent(AccentColor accent) {
+  if (accent >= ACCENT_COUNT) {
+    return;
+  }
+  s_settings.accent = (uint8_t)accent;
+  settings_save();
+}
+
+const char *settings_accent_name(AccentColor accent) {
+  switch (accent) {
+  case ACCENT_THEME:
+    return "Theme";
+  case ACCENT_RED:
+    return "Red";
+  case ACCENT_ORANGE:
+    return "Orange";
+  case ACCENT_YELLOW:
+    return "Yellow";
+  case ACCENT_GREEN:
+    return "Green";
+  case ACCENT_CYAN:
+    return "Cyan";
+  case ACCENT_BLUE:
+    return "Blue";
+  case ACCENT_MAGENTA:
+    return "Magenta";
+  case ACCENT_WHITE:
+    return "White";
+  default:
+    return "Theme";
+  }
 }
 
 void settings_set_pace_alerts(bool enabled) {

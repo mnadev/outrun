@@ -13,6 +13,22 @@ typedef enum {
   UNITS_MI = 1
 } DistanceUnits;
 
+// User-selectable accent color. ACCENT_THEME follows the active stalker theme;
+// the rest force a specific hue. Stored as a plain integer so this header and
+// settings.c stay free of GColor (resolved to a GColor in accent.c).
+typedef enum {
+  ACCENT_THEME = 0,
+  ACCENT_RED,
+  ACCENT_ORANGE,
+  ACCENT_YELLOW,
+  ACCENT_GREEN,
+  ACCENT_CYAN,
+  ACCENT_BLUE,
+  ACCENT_MAGENTA,
+  ACCENT_WHITE,
+  ACCENT_COUNT
+} AccentColor;
+
 typedef struct {
   DistanceUnits units;
   int32_t target_pace_sec_per_km;
@@ -20,6 +36,7 @@ typedef struct {
   uint8_t hr_zone_hi;
   bool pace_alerts_enabled;
   bool hr_alerts_enabled;
+  uint8_t accent; // AccentColor
 } AppSettings;
 
 #define SETTINGS_PERSIST_KEY 1
@@ -38,7 +55,11 @@ void settings_set_target_pace(int32_t pace_sec_per_km);
 void settings_set_hr_zone(uint8_t lo, uint8_t hi);
 void settings_set_pace_alerts(bool enabled);
 void settings_set_hr_alerts(bool enabled);
+void settings_set_accent(AccentColor accent);
 void settings_save(void);
+
+/** Human-readable name of an accent color (for the settings list). */
+const char *settings_accent_name(AccentColor accent);
 
 /** Convert sec/km to display sec per current unit (km or mile). */
 int32_t settings_display_pace(int32_t pace_sec_per_km);

@@ -3,6 +3,7 @@
  */
 
 #include "menu_window.h"
+#include "accent.h"
 #include "plans_window.h"
 #include "run_window.h"
 #include "settings_window.h"
@@ -77,8 +78,7 @@ static void window_load(Window *window) {
   menu_layer_set_center_focused(s_menu, true);
 #endif
 #if defined(PBL_COLOR)
-  menu_layer_set_highlight_colors(
-      s_menu, themes_get_primary_color(themes_get_current()), GColorBlack);
+  menu_layer_set_highlight_colors(s_menu, accent_get_color(), GColorBlack);
 #endif
   layer_add_child(root, menu_layer_get_layer(s_menu));
 }

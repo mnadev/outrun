@@ -3,6 +3,7 @@
  */
 
 #include "settings_window.h"
+#include "accent.h"
 #include "pace_window.h"
 #include "settings.h"
 #include "stalker_themes.h"
@@ -10,6 +11,8 @@
 static Window *s_window;
 static MenuLayer *s_menu;
 
+// SETTING_ACCENT is last so it can be hidden on black-and-white watches (where
+// an accent color has no visible effect) simply by returning one fewer row.
 typedef enum {
   SETTING_THEME = 0,
   SETTING_UNITS,
@@ -17,6 +20,7 @@ typedef enum {
   SETTING_HR_ZONE,
   SETTING_PACE_ALERTS,
   SETTING_HR_ALERTS,
+  SETTING_ACCENT,
   SETTING_COUNT
 } SettingItem;
 
@@ -24,7 +28,7 @@ static uint16_t menu_get_num_rows(MenuLayer *menu, uint16_t section_index, void 
   (void)menu;
   (void)section_index;
   (void)data;
-  return SETTING_COUNT;
+  return PBL_IF_COLOR_ELSE(SETTING_COUNT, SETTING_COUNT - 1);
 }
 
 static void menu_draw_row(GContext *ctx, const Layer *cell_layer, MenuIndex *cell_index,
@@ -62,6 +66,11 @@ static void menu_draw_row(GContext *ctx, const Layer *cell_layer, MenuIndex *cel
     snprintf(subtitle, sizeof(subtitle), "%s",
              settings->hr_alerts_enabled ? "On" : "Off");
     break;
+  case SETTING_ACCENT:
+    title = "Accent";
+    snprintf(subtitle, sizeof(subtitle), "%s",
+             settings_accent_name((AccentColor)settings->accent));
+    break;
   default:
     subtitle[0] = '\0';
     break;
@@ -73,8 +82,7 @@ static void menu_draw_row(GContext *ctx, const Layer *cell_layer, MenuIndex *cel
 static void apply_theme_colors(void) {
 #if defined(PBL_COLOR)
   if (s_menu) {
-    GColor accent = themes_get_primary_color(themes_get_current());
-    menu_layer_set_highlight_colors(s_menu, accent, GColorBlack);
+    menu_layer_set_highlight_colors(s_menu, accent_get_color(), GColorBlack);
   }
 #endif
 }
@@ -104,6 +112,12 @@ static void menu_select_click(MenuLayer *menu, MenuIndex *cell_index, void *data
   case SETTING_HR_ALERTS:
     settings_set_hr_alerts(!settings->hr_alerts_enabled);
     break;
+  case SETTING_ACCENT: {
+    AccentColor next = (AccentColor)((settings->accent + 1) % ACCENT_COUNT);
+    settings_set_accent(next);
+    apply_theme_colors(); // live preview of the new accent on the highlight
+    break;
+  }
   default:
     break;
   }
