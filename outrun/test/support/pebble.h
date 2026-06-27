@@ -197,4 +197,9 @@ static inline void app_timer_cancel(AppTimer *t) { (void)t; }
 // Event loop stub
 static inline void app_event_loop(void) {}
 
+// Persistent storage (in-memory stub implemented in support/persist_stub.c).
+bool persist_exists(uint32_t key);
+int persist_read_data(uint32_t key, void *buffer, size_t length);
+int persist_write_data(uint32_t key, const void *data, size_t length);
+
 #endif // PEBBLE_H

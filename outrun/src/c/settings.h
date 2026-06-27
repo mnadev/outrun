@@ -27,6 +27,9 @@ typedef struct {
 #define DEFAULT_HR_ZONE_LO 120
 #define DEFAULT_HR_ZONE_HI 150
 #define METERS_PER_MILE 1609
+// One target-pace button step, expressed in the user's display unit (seconds
+// per km or per mile). Converted to sec/km via settings_pace_step_to_sec_per_km.
+#define PACE_ADJUST_STEP_SEC 15
 
 void settings_init(void);
 const AppSettings *settings_get(void);
@@ -43,6 +46,13 @@ int32_t settings_display_pace(int32_t pace_sec_per_km);
 
 /** Convert display-unit pace back to sec/km. */
 int32_t settings_pace_from_display(int32_t display_pace);
+
+/**
+ * Convert a target-pace step expressed in display units (sec per km or mile)
+ * into a sec/km delta, so one button press changes the displayed pace by a
+ * consistent amount regardless of units.
+ */
+int32_t settings_pace_step_to_sec_per_km(int32_t display_step_sec);
 
 /** Format pace into buffer as m:ss per current unit. */
 void settings_format_pace(char *buffer, size_t size, int32_t pace_sec_per_km);

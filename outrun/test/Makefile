@@ -15,7 +15,9 @@ HAPTIC_PATTERNS_SRC = ../src/c/haptic_patterns.c
 WATCH_SRC = ../src/c/watch.c
 FEEDBACK_SRC = ../src/c/feedback.c
 HR_STATS_SRC = ../src/c/hr_stats.c
+SETTINGS_SRC = ../src/c/settings.c
 MOCK_WATCH_SRC = support/mock_watch.c
+PERSIST_STUB_SRC = support/persist_stub.c
 
 # Test executables
 TEST_PACE_ENGINE = test_pace_engine_runner
@@ -26,12 +28,13 @@ TEST_PLAN = test_plan_runner
 TEST_HAPTIC_PATTERNS = test_haptic_patterns_runner
 TEST_FEEDBACK = test_feedback_runner
 TEST_HR_STATS = test_hr_stats_runner
+TEST_SETTINGS = test_settings_runner
 
 .PHONY: all test clean
 
 all: test
 
-test: $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK) $(TEST_HR_STATS)
+test: $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK) $(TEST_HR_STATS) $(TEST_SETTINGS)
 	@echo "========================================="
 	@echo "Running Pace Engine Tests..."
 	@echo "========================================="
@@ -73,6 +76,11 @@ test: $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE
 	@./$(TEST_HR_STATS)
 	@echo ""
 	@echo "========================================="
+	@echo "Running Settings Tests..."
+	@echo "========================================="
+	@./$(TEST_SETTINGS)
+	@echo ""
+	@echo "========================================="
 	@echo "All tests complete!"
 	@echo "========================================="
 
@@ -100,6 +108,9 @@ $(TEST_FEEDBACK): test_feedback.c $(FEEDBACK_SRC) $(WATCH_SRC) $(HAPTIC_PATTERNS
 $(TEST_HR_STATS): test_hr_stats.c $(HR_STATS_SRC) $(UNITY_SRC)
 	$(CC) $(CFLAGS) -o $@ $^
 
+$(TEST_SETTINGS): test_settings.c $(SETTINGS_SRC) $(PERSIST_STUB_SRC) $(UNITY_SRC)
+	$(CC) $(CFLAGS) -o $@ $^
+
 clean:
-	rm -f $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK) $(TEST_HR_STATS)
+	rm -f $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK) $(TEST_HR_STATS) $(TEST_SETTINGS)
 	rm -rf *.dSYM

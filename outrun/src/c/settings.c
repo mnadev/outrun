@@ -6,18 +6,46 @@
 #include <pebble.h>
 #include <stdio.h>
 
+// Persisted settings are wrapped with a magic + version so an old or foreign
+// blob is detected and ignored instead of being misread as the current struct.
+// Bump SETTINGS_VERSION whenever the AppSettings layout changes.
+#define SETTINGS_MAGIC 0x4F55u // 'O','U'
+#define SETTINGS_VERSION 1u
+
+typedef struct {
+  uint16_t magic;
+  uint16_t version;
+  AppSettings settings;
+} PersistedSettings;
+
 static AppSettings s_settings;
 
+static void apply_defaults(void) {
+  s_settings.units = UNITS_KM;
+  s_settings.target_pace_sec_per_km = DEFAULT_TARGET_PACE_SEC;
+  s_settings.hr_zone_lo = DEFAULT_HR_ZONE_LO;
+  s_settings.hr_zone_hi = DEFAULT_HR_ZONE_HI;
+  s_settings.pace_alerts_enabled = true;
+  s_settings.hr_alerts_enabled = true;
+}
+
 void settings_init(void) {
+  bool loaded = false;
+
   if (persist_exists(SETTINGS_PERSIST_KEY)) {
-    persist_read_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(AppSettings));
-  } else {
-    s_settings.units = UNITS_KM;
-    s_settings.target_pace_sec_per_km = DEFAULT_TARGET_PACE_SEC;
-    s_settings.hr_zone_lo = DEFAULT_HR_ZONE_LO;
-    s_settings.hr_zone_hi = DEFAULT_HR_ZONE_HI;
-    s_settings.pace_alerts_enabled = true;
-    s_settings.hr_alerts_enabled = true;
+    PersistedSettings stored;
+    int read = persist_read_data(SETTINGS_PERSIST_KEY, &stored, sizeof(stored));
+    if (read == (int)sizeof(stored) && stored.magic == SETTINGS_MAGIC &&
+        stored.version == SETTINGS_VERSION) {
+      s_settings = stored.settings;
+      loaded = true;
+    }
+    // Unrecognized/old-format data is intentionally dropped here; we fall back
+    // to defaults below and overwrite it in the current versioned format.
+  }
+
+  if (!loaded) {
+    apply_defaults();
     settings_save();
   }
 
@@ -75,7 +103,12 @@ void settings_set_hr_alerts(bool enabled) {
 }
 
 void settings_save(void) {
-  persist_write_data(SETTINGS_PERSIST_KEY, &s_settings, sizeof(AppSettings));
+  PersistedSettings stored = {
+      .magic = SETTINGS_MAGIC,
+      .version = SETTINGS_VERSION,
+      .settings = s_settings,
+  };
+  persist_write_data(SETTINGS_PERSIST_KEY, &stored, sizeof(stored));
 }
 
 int32_t settings_display_pace(int32_t pace_sec_per_km) {
@@ -90,6 +123,13 @@ int32_t settings_pace_from_display(int32_t display_pace) {
     return (display_pace * 1000) / METERS_PER_MILE;
   }
   return display_pace;
+}
+
+int32_t settings_pace_step_to_sec_per_km(int32_t display_step_sec) {
+  // A step is a delta in display units; the display<->km mapping is linear
+  // through the origin, so the same conversion applies to deltas. In km mode
+  // this is a no-op (15 -> 15); in miles a 15s/mile step is ~9s/km.
+  return settings_pace_from_display(display_step_sec);
 }
 
 void settings_format_pace(char *buffer, size_t size, int32_t pace_sec_per_km) {

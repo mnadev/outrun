@@ -470,7 +470,8 @@ static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
   if (run_session_is_planned() || run_state_get() == RUN_COMPLETE) {
     return;
   }
-  pace_engine_adjust_target(-15);
+  pace_engine_adjust_target(
+      settings_pace_step_to_sec_per_km(-PACE_ADJUST_STEP_SEC));
   const PaceData *pace = pace_engine_get_data();
   comm_send_target_pace(pace->target_pace_sec_per_km);
   run_window_update();
@@ -480,7 +481,8 @@ static void down_click_handler(ClickRecognizerRef recognizer, void *context) {
   if (run_session_is_planned() || run_state_get() == RUN_COMPLETE) {
     return;
   }
-  pace_engine_adjust_target(15);
+  pace_engine_adjust_target(
+      settings_pace_step_to_sec_per_km(PACE_ADJUST_STEP_SEC));
   const PaceData *pace = pace_engine_get_data();
   comm_send_target_pace(pace->target_pace_sec_per_km);
   run_window_update();

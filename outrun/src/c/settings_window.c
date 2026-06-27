@@ -92,7 +92,8 @@ static void menu_select_click(MenuLayer *menu, MenuIndex *cell_index, void *data
     settings_set_units(settings->units == UNITS_KM ? UNITS_MI : UNITS_KM);
     break;
   case SETTING_TARGET_PACE:
-    settings_adjust_target_pace(-15);
+    settings_adjust_target_pace(
+        settings_pace_step_to_sec_per_km(-PACE_ADJUST_STEP_SEC));
     break;
   case SETTING_HR_ZONE:
     settings_set_hr_zone(settings->hr_zone_lo + 5, settings->hr_zone_hi + 5);
@@ -115,7 +116,8 @@ static void menu_select_long_click(MenuLayer *menu, MenuIndex *cell_index, void 
 
   switch (cell_index->row) {
   case SETTING_TARGET_PACE:
-    settings_adjust_target_pace(15);
+    settings_adjust_target_pace(
+        settings_pace_step_to_sec_per_km(PACE_ADJUST_STEP_SEC));
     break;
   case SETTING_HR_ZONE:
     settings_set_hr_zone(settings->hr_zone_lo - 5, settings->hr_zone_hi - 5);
