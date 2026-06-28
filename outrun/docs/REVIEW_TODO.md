@@ -28,6 +28,15 @@ Remaining findings from the adversarial review, prioritized.
   comes from the velocity estimate. Smoother pace = fewer false band buzzes, and
   noisy-track distance error drops from naive's ~+43% to ~-11% with no bias on a
   clean track. Tuned (accelNoise 0.4) and tested (filter + integration suites).
+- **Honest GPS state** (`run_window.c`): before a real fix arrives the watch no
+  longer shows the target as if it were live pace; it shows `--:--` with
+  "Acquiring GPS" -> "No GPS signal" (>30s) -> "GPS lost" (feed stale >10s).
+  Verified on the emulator.
+- **GPS auto-pause** (`auto_pause.c` + phone `MOVING` key): paired runs auto-
+  pause after a 5s stop and resume on movement; the phone keeps GPS on while
+  auto-paused so it can drive the resume. Watch stays run-state authoritative
+  (manual pause/resume overrides; shows "Auto-paused" vs "Paused"). Pure
+  decision module host-tested (9 Unity tests) + a pace_calculator speed test.
 - **P2: phone-HR override was sticky** (`hr_monitor.c`): a once-received phone HR
   shadowed the on-watch sensor forever. Cleared on `hr_monitor_stop()`; renamed
   the misleading `debug` naming to phone-HR terms.
@@ -68,13 +77,10 @@ Remaining findings from the adversarial review, prioritized.
 
 ## Candidate further improvements (not yet done)
 
-- **"Acquiring GPS" state.** Before the first fix the watch shows the target as
-  current pace ("5:00 / 5:00"), which looks like a live reading. A phone->watch
-  "GPS not ready" flag + a watch indicator would make the warm-up honest. Needs a
-  comm-protocol + watch-UI change.
-- **Auto-pause when stopped.** With the Kalman speed estimate the phone could
-  auto-pause at ~0 m/s and resume on movement, so red-light stops don't read as
-  "off pace". Needs watch-side coordination.
+- **Auto-pause toggle in Settings.** Auto-pause is on by default (only active
+  when paired and the phone reports a sustained stop). A Settings switch would
+  let runners who prefer raw elapsed time turn it off. Needs a settings field
+  (bump the persist version) + a settings-menu row.
 - **Full-run GPX.** `getGpsTrack()` only returns the last `windowSize` smoothed
   points, so server-synced GPX is truncated. Out of scope (cloud) but worth
   fixing if/when cloud save matters; the offline ghost already uses the full

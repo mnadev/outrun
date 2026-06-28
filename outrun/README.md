@@ -6,7 +6,9 @@ shows targets and buzzes when you drift off pace or heart rate.
 ## What it does
 
 - **Phone → watch pace & distance** — PebbleKit JS uses GPS to compute current
-  pace and total distance, sent to the watch over Bluetooth.
+  pace and total distance (smoothed with a constant-velocity Kalman filter), sent
+  to the watch over Bluetooth. The watch shows "Acquiring GPS" until a real fix
+  arrives instead of faking it, and **auto-pauses** when you stop.
 - **On-watch HR** — Pebble Health (Pebble 2 / Time 2) samples heart rate during
   a run; zone shown on screen.
 - **Vibration alerts** — Debounced buzzes when pace or HR leaves your target
