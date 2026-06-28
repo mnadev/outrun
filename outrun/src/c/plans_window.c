@@ -48,6 +48,9 @@ static void window_load(Window *window) {
   menu_layer_set_center_focused(s_menu, true);
 #endif
 #if defined(PBL_COLOR)
+  // Dark rows to match the rest of the app; the accent highlight (never black)
+  // then always stands out so it's clear which row SELECT will act on.
+  menu_layer_set_normal_colors(s_menu, GColorBlack, GColorWhite);
   menu_layer_set_highlight_colors(s_menu, accent_get_color(), GColorBlack);
 #endif
   layer_add_child(root, menu_layer_get_layer(s_menu));

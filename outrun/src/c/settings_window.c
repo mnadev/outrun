@@ -82,6 +82,9 @@ static void menu_draw_row(GContext *ctx, const Layer *cell_layer, MenuIndex *cel
 static void apply_theme_colors(void) {
 #if defined(PBL_COLOR)
   if (s_menu) {
+    // Dark rows to match the rest of the app; the accent highlight (never
+    // black) then always stands out so the selected row is obvious.
+    menu_layer_set_normal_colors(s_menu, GColorBlack, GColorWhite);
     menu_layer_set_highlight_colors(s_menu, accent_get_color(), GColorBlack);
   }
 #endif
