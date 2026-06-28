@@ -3,6 +3,7 @@
  */
 
 #include "run_session.h"
+#include "auto_pause.h"
 #include "comm.h"
 #include "haptic_feedback.h"
 #include "hr_stats.h"
@@ -11,6 +12,9 @@
 #include "settings.h"
 #include "watch_interface.h"
 
+// Auto-pause after this many consecutive stopped seconds (phone-reported).
+#define AUTO_PAUSE_STOPPED_SEC 5
+
 static SessionType s_session_type;
 static uint8_t s_pending_plan_index;
 static PlanProgress s_plan_progress;
@@ -18,6 +22,10 @@ static AlertState s_alert_state;
 static uint32_t s_segment_start_elapsed;
 static uint32_t s_segment_start_distance;
 static HrStats s_hr_stats;
+static AutoPauseState s_auto_pause;
+// Latest movement state reported by the phone. Defaults to moving so a run with
+// no movement feed (offline / older phone) never auto-pauses.
+static bool s_moving = true;
 
 static void apply_segment_targets(const PlanSegment *segment) {
   if (!segment) {
@@ -75,6 +83,8 @@ void run_session_init(void) {
   s_segment_start_elapsed = 0;
   s_segment_start_distance = 0;
   hr_stats_reset(&s_hr_stats);
+  auto_pause_init(&s_auto_pause);
+  s_moving = true;
 }
 
 void run_session_prepare_planned(uint8_t plan_index) {
@@ -97,6 +107,8 @@ bool run_session_start_quick(void) {
   pace_engine_reset();
   alert_engine_reset(&s_alert_state);
   hr_stats_reset(&s_hr_stats);
+  auto_pause_reset(&s_auto_pause);
+  s_moving = true;
   watch_heart_rate_start();
   comm_send_command(CMD_START);
   return true;
@@ -116,6 +128,8 @@ bool run_session_start_planned(uint8_t plan_index) {
   s_segment_start_distance = 0;
   alert_engine_reset(&s_alert_state);
   hr_stats_reset(&s_hr_stats);
+  auto_pause_reset(&s_auto_pause);
+  s_moving = true;
   watch_heart_rate_start();
 
   const PlanSegment *segment = plan_progress_current_segment(&s_plan_progress);
@@ -131,6 +145,29 @@ void run_session_stop(void) {
   s_session_type = SESSION_NONE;
   plan_progress_init(&s_plan_progress);
   alert_engine_reset(&s_alert_state);
+  auto_pause_reset(&s_auto_pause);
+  s_moving = true;
+}
+
+// Phone-reported movement. Drives GPS auto-pause: when paired, the watch pauses
+// the run after a sustained stop and resumes the moment movement returns. The
+// auto-pause deliberately does NOT tell the phone to stop tracking, so the phone
+// keeps reporting movement and can trigger the resume.
+void run_session_set_moving(bool moving) {
+  s_moving = moving;
+  if (auto_pause_on_moving(&s_auto_pause, moving)) {
+    run_state_resume();
+    watch_heart_rate_start();
+  }
+}
+
+bool run_session_is_auto_paused(void) { return s_auto_pause.active; }
+
+// Manual pause/resume/stop overrides auto-pause so it won't auto-resume a run
+// the user deliberately paused, or keep a stale stopped-counter.
+void run_session_reset_auto_pause(void) {
+  auto_pause_reset(&s_auto_pause);
+  s_moving = true;
 }
 
 void run_session_on_segment_change(void) {
@@ -143,6 +180,14 @@ void run_session_on_segment_change(void) {
 void run_session_tick(void) {
   RunState state = run_state_get();
   if (state != RUN_ACTIVE) {
+    return;
+  }
+
+  // Auto-pause if the phone has reported the runner stopped for long enough.
+  // No CMD_PAUSE is sent: the phone keeps GPS on so it can report the resume.
+  if (auto_pause_tick(&s_auto_pause, s_moving, AUTO_PAUSE_STOPPED_SEC)) {
+    run_state_pause();
+    watch_heart_rate_stop();
     return;
   }
 

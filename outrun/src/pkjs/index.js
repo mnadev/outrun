@@ -43,8 +43,12 @@ var Keys = {
     PLAN_NAME: 12,
     PLAN_SEG_COUNT: 13,
     PLAN_DATA: 14,
-    PLAN_TOTAL: 15
+    PLAN_TOTAL: 15,
+    MOVING: 16
 };
+
+// Below this speed (m/s) the runner is treated as stopped, for auto-pause.
+var MOVE_THRESHOLD_MPS = 0.5;
 
 // Commands from watch
 var Commands = WatchCommands.Commands;
@@ -58,7 +62,7 @@ var debugLng = -122.4194;
 var debugHr = 130;
 var debugPaceOffset = 0;
 
-function sendPaceUpdate(currentPace, targetPace) {
+function sendPaceUpdate(currentPace, moving) {
     // NOTE: do NOT send TARGET_PACE here. The watch owns the target pace (set in
     // Settings / the pace picker / UP-DOWN during a quick run) and pushes changes
     // to the phone. Echoing the phone's target back would overwrite the runner's
@@ -68,6 +72,7 @@ function sendPaceUpdate(currentPace, targetPace) {
     var message = {};
     message[Keys.CURRENT_PACE] = currentPace;
     message[Keys.CURRENT_DISTANCE] = paceCalculator.getTotalDistance();
+    message[Keys.MOVING] = moving ? 1 : 0;
 
     Pebble.sendAppMessage(message,
         function () {
@@ -77,6 +82,17 @@ function sendPaceUpdate(currentPace, targetPace) {
             console.log('Failed to send pace update: ' + e.error);
         }
     );
+}
+
+/**
+ * Report only the movement state to the watch (used when stopped, i.e. there's
+ * no pace to send). Drives the watch's GPS auto-pause/resume. Sent roughly once
+ * per fix so a dropped message self-corrects on the next one.
+ */
+function sendMoving(moving) {
+    var message = {};
+    message[Keys.MOVING] = moving ? 1 : 0;
+    Pebble.sendAppMessage(message);
 }
 
 /**
@@ -250,12 +266,15 @@ function handlePosition(position) {
     paceCalculator.addLocation(location);
     fullTrack.push({ lat: lat, lng: lng, timestamp: location.timestamp });
 
-    // Get calculated pace
+    // Get calculated pace and movement state (for auto-pause).
     var pace = paceCalculator.getCurrentPace();
-    var targetPace = paceCalculator.getTargetPace();
+    var moving = paceCalculator.getCurrentSpeed() >= MOVE_THRESHOLD_MPS;
 
     if (pace > 0) {
-        sendPaceUpdate(pace, targetPace);
+        sendPaceUpdate(pace, moving);
+    } else {
+        // Stopped (or no pace yet): keep the watch's auto-pause in sync.
+        sendMoving(moving);
     }
 
     // Segment detection (only if Strava is connected)
@@ -349,8 +368,11 @@ function startDebugSimulator() {
         paceCalculator.addLocation(location);
         fullTrack.push({ lat: debugLat, lng: debugLng, timestamp: location.timestamp });
         var pace = paceCalculator.getCurrentPace();
+        var moving = paceCalculator.getCurrentSpeed() >= MOVE_THRESHOLD_MPS;
         if (pace > 0) {
-            sendPaceUpdate(pace, targetPace);
+            sendPaceUpdate(pace, moving);
+        } else {
+            sendMoving(moving);
         }
         sendHeartRate(debugHr);
         updateGhostRace(debugLat, debugLng);

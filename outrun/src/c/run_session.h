@@ -27,3 +27,10 @@ void run_session_on_segment_change(void);
 const PlanProgress *run_session_get_progress(void);
 bool run_session_is_planned(void);
 bool run_session_is_active(void);
+
+/** Phone-reported movement state, used for GPS auto-pause/resume. */
+void run_session_set_moving(bool moving);
+/** True while the run is paused by auto-pause (vs. a manual pause). */
+bool run_session_is_auto_paused(void);
+/** Clear auto-pause bookkeeping on a manual pause/resume/stop. */
+void run_session_reset_auto_pause(void);

@@ -28,7 +28,8 @@ enum {
   KEY_PLAN_NAME = 12,
   KEY_PLAN_SEG_COUNT = 13,
   KEY_PLAN_DATA = 14,
-  KEY_PLAN_TOTAL = 15
+  KEY_PLAN_TOTAL = 15,
+  KEY_MOVING = 16
 };
 
 static char s_segment_name[32];
@@ -128,6 +129,15 @@ static void inbox_received_handler(DictionaryIterator *iterator, void *context) 
   Tuple *connected_tuple = dict_find(iterator, KEY_CONNECTED);
   if (connected_tuple) {
     features_set_connected(connected_tuple->value->int32 == 1);
+  }
+
+  // Movement state first: it may auto-resume the run (PAUSED -> ACTIVE) so a
+  // pace update in the same message is accepted. Processed while active or
+  // auto-paused (we still need movement to detect the resume).
+  Tuple *moving_tuple = dict_find(iterator, KEY_MOVING);
+  if (moving_tuple && run_session_is_active()) {
+    run_session_set_moving(moving_tuple->value->int32 == 1);
+    run_window_update();
   }
 
   Tuple *pace_tuple = dict_find(iterator, KEY_CURRENT_PACE);

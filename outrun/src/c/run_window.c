@@ -386,7 +386,7 @@ void run_window_update(void) {
     }
     break;
   case RUN_PAUSED:
-    status = "Paused";
+    status = run_session_is_auto_paused() ? "Auto-paused" : "Paused";
     break;
   case RUN_COMPLETE:
     status = "Complete";
@@ -464,11 +464,13 @@ static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
   case RUN_ACTIVE:
     run_state_pause();
     watch_heart_rate_stop();
+    run_session_reset_auto_pause(); // manual pause overrides auto-pause
     comm_send_command(CMD_PAUSE);
     break;
   case RUN_PAUSED:
     run_state_resume();
     watch_heart_rate_start();
+    run_session_reset_auto_pause(); // manual resume clears any auto-pause
     comm_send_command(CMD_RESUME);
     break;
   case RUN_COMPLETE:

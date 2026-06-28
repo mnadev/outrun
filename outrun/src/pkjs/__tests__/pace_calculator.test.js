@@ -152,6 +152,22 @@ describe('PaceCalculator', () => {
       expect(pace).toBeLessThan(355);
     });
 
+    test('reports ground speed for movement detection', () => {
+      const base = 1000000;
+      const dLat = 3 / M_PER_DEG; // 3 m/s
+      let lat = 40.0;
+      calculator.addLocation({ lat, lng: -73.0, accuracy: 5, timestamp: base });
+      expect(calculator.getCurrentSpeed()).toBe(0); // no velocity from one fix
+      for (let i = 1; i <= 30; i++) {
+        lat += dLat;
+        calculator.addLocation({ lat, lng: -73.0, accuracy: 5, timestamp: base + i * 1000 });
+      }
+      // Converges near the true 3 m/s -> clearly "moving".
+      const speed = calculator.getCurrentSpeed();
+      expect(speed).toBeGreaterThan(2.5);
+      expect(speed).toBeLessThan(3.5);
+    });
+
     test('noise does not massively inflate distance', () => {
       const base = 1000000;
       const rng = makeRng(7);

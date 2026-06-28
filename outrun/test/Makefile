@@ -16,6 +16,7 @@ WATCH_SRC = ../src/c/watch.c
 FEEDBACK_SRC = ../src/c/feedback.c
 HR_STATS_SRC = ../src/c/hr_stats.c
 SETTINGS_SRC = ../src/c/settings.c
+AUTO_PAUSE_SRC = ../src/c/auto_pause.c
 MOCK_WATCH_SRC = support/mock_watch.c
 PERSIST_STUB_SRC = support/persist_stub.c
 
@@ -29,12 +30,13 @@ TEST_HAPTIC_PATTERNS = test_haptic_patterns_runner
 TEST_FEEDBACK = test_feedback_runner
 TEST_HR_STATS = test_hr_stats_runner
 TEST_SETTINGS = test_settings_runner
+TEST_AUTO_PAUSE = test_auto_pause_runner
 
 .PHONY: all test clean
 
 all: test
 
-test: $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK) $(TEST_HR_STATS) $(TEST_SETTINGS)
+test: $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK) $(TEST_HR_STATS) $(TEST_SETTINGS) $(TEST_AUTO_PAUSE)
 	@echo "========================================="
 	@echo "Running Pace Engine Tests..."
 	@echo "========================================="
@@ -81,6 +83,11 @@ test: $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE
 	@./$(TEST_SETTINGS)
 	@echo ""
 	@echo "========================================="
+	@echo "Running Auto-Pause Tests..."
+	@echo "========================================="
+	@./$(TEST_AUTO_PAUSE)
+	@echo ""
+	@echo "========================================="
 	@echo "All tests complete!"
 	@echo "========================================="
 
@@ -111,6 +118,9 @@ $(TEST_HR_STATS): test_hr_stats.c $(HR_STATS_SRC) $(UNITY_SRC)
 $(TEST_SETTINGS): test_settings.c $(SETTINGS_SRC) $(PERSIST_STUB_SRC) $(UNITY_SRC)
 	$(CC) $(CFLAGS) -o $@ $^
 
+$(TEST_AUTO_PAUSE): test_auto_pause.c $(AUTO_PAUSE_SRC) $(UNITY_SRC)
+	$(CC) $(CFLAGS) -o $@ $^
+
 clean:
-	rm -f $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK) $(TEST_HR_STATS) $(TEST_SETTINGS)
+	rm -f $(TEST_PACE_ENGINE) $(TEST_RUN_STATE) $(TEST_FEATURES) $(TEST_ALERT_ENGINE) $(TEST_PLAN) $(TEST_HAPTIC_PATTERNS) $(TEST_FEEDBACK) $(TEST_HR_STATS) $(TEST_SETTINGS) $(TEST_AUTO_PAUSE)
 	rm -rf *.dSYM

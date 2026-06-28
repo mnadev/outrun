@@ -37,7 +37,8 @@
       "PLAN_NAME",
       "PLAN_SEG_COUNT",
       "PLAN_DATA",
-      "PLAN_TOTAL"
+      "PLAN_TOTAL",
+      "MOVING"
     ],
     "resources": {
       "media": []

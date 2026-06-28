@@ -168,6 +168,14 @@ PaceCalculator.prototype.getTotalDistance = function () {
 };
 
 /**
+ * Current ground speed in m/s from the Kalman estimate (0 before the first
+ * post-init fix). Used to decide movement for auto-pause.
+ */
+PaceCalculator.prototype.getCurrentSpeed = function () {
+  return this.currentSpeed;
+};
+
+/**
  * Get elapsed time in seconds
  */
 PaceCalculator.prototype.getElapsedTime = function () {
